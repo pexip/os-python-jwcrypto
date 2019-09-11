@@ -1,0 +1,4 @@
+version=3
+opts=uversionmangle=s/(rc|a|b|c)/~$1/,filenamemangle=s/^.*v/python-jwcrypto-/ \
+https://github.com/latchset/jwcrypto/tags \
+ (?:.*?/)?v?(\d[\d.]*)\.tar\.(?:gz|bz2|xz)

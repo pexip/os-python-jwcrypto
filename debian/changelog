@@ -1,0 +1,40 @@
+python-jwcrypto (0.6.0-2) unstable; urgency=medium
+
+  * compat, control: Bump compat to 12.
+  * Switch to python3 only. (Closes: #937862)
+  * control: Bump policy to 4.4.0.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 12 Sep 2019 00:04:33 +0300
+
+python-jwcrypto (0.6.0-1) unstable; urgency=medium
+
+  * New upstream release. (Closes: #925457)
+  * control: Update vcs urls.
+  * control: Drop X-Python-Version*.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 02 Apr 2019 09:05:15 +0300
+
+python-jwcrypto (0.4.2-1) unstable; urgency=medium
+
+  * New upstream release.
+  * control: Bump policy to 4.1.2, no changes.
+  * Bump debhelper to 10.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Sat, 23 Dec 2017 10:00:03 +0200
+
+python-jwcrypto (0.3.2-1) unstable; urgency=medium
+
+  * New upstream release.
+    - CVE-2016-6298
+  * control, copyright, watch: Update upstream url.
+  * watch: Fix tarball name.
+  * control: Add vcs urls.
+  * control: Bump policy to 3.9.8, no changes.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Mon, 19 Sep 2016 16:23:47 +0300
+
+python-jwcrypto (0.2.1-1) unstable; urgency=low
+
+  * Initial upload. (Closes: #800702)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 02 Oct 2015 09:24:49 +0300
