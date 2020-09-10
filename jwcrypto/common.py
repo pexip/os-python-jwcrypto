@@ -1,8 +1,13 @@
 # Copyright (C) 2015 JWCrypto Project Contributors - see LICENSE file
 
+import copy
 import json
 from base64 import urlsafe_b64decode, urlsafe_b64encode
-
+from collections import namedtuple
+try:
+    from collections.abc import MutableMapping
+except ImportError:
+    from collections import MutableMapping
 
 # Padding stripping versions as described in
 # RFC 7515 Appendix C
@@ -56,7 +61,7 @@ class InvalidCEKeyLength(JWException):
     """Invalid CEK Key Length.
 
     This exception is raised when a Content Encryption Key does not match
-    the required lenght.
+    the required length.
     """
 
     def __init__(self, expected, obtained):
@@ -86,7 +91,7 @@ class InvalidJWEKeyType(JWException):
     """Invalid JWE Key Type.
 
     This exception is raised when the provided JWK Key does not match
-    the type required by the sepcified algorithm.
+    the type required by the specified algorithm.
     """
 
     def __init__(self, expected, obtained):
@@ -98,9 +103,91 @@ class InvalidJWEKeyLength(JWException):
     """Invalid JWE Key Length.
 
     This exception is raised when the provided JWK Key does not match
-    the lenght required by the sepcified algorithm.
+    the length required by the specified algorithm.
     """
 
     def __init__(self, expected, obtained):
-        msg = 'Expected key of lenght %d, got %d' % (expected, obtained)
+        msg = 'Expected key of length %d, got %d' % (expected, obtained)
         super(InvalidJWEKeyLength, self).__init__(msg)
+
+
+class InvalidJWSERegOperation(JWException):
+    """Invalid JWSE Header Registry Operation.
+
+    This exception is raised when there is an error in trying ot add a JW
+    Signature or Encryption header to the Registry.
+    """
+
+    def __init__(self, message=None, exception=None):
+        msg = None
+        if message:
+            msg = message
+        else:
+            msg = 'Unknown Operation Failure'
+        if exception:
+            msg += ' {%s}' % repr(exception)
+        super(InvalidJWSERegOperation, self).__init__(msg)
+
+
+# JWSE Header Registry definitions
+
+# RFC 7515 - 9.1: JSON Web Signature and Encryption Header Parameters Registry
+# HeaderParameters are for both JWS and JWE
+JWSEHeaderParameter = namedtuple('Parameter',
+                                 'description mustprotect supported check_fn')
+
+
+class JWSEHeaderRegistry(MutableMapping):
+    def __init__(self, init_registry=None):
+        if init_registry:
+            if isinstance(init_registry, dict):
+                self._registry = copy.deepcopy(init_registry)
+            else:
+                raise InvalidJWSERegOperation('Unknown input type')
+        else:
+            self._registry = {}
+
+        MutableMapping.__init__(self)
+
+    def check_header(self, h, value):
+        if h not in self._registry:
+            raise InvalidJWSERegOperation('No header "%s" found in registry'
+                                          % h)
+
+        param = self._registry[h]
+        if param.check_fn is None:
+            return True
+        else:
+            return param.check_fn(value)
+
+    def __getitem__(self, key):
+        return self._registry.__getitem__(key)
+
+    def __iter__(self):
+        return self._registry.__iter__()
+
+    def __delitem__(self, key):
+        if self._registry[key].mustprotect or \
+           self._registry[key].supported:
+            raise InvalidJWSERegOperation('Unable to delete protected or '
+                                          'supported field')
+        else:
+            self._registry.__delitem__(key)
+
+    def __setitem__(self, h, jwse_header_param):
+        # Check if a header is not supported
+        if h in self._registry:
+            p = self._registry[h]
+            if p.supported:
+                raise InvalidJWSERegOperation('Supported header already exists'
+                                              ' in registry')
+            elif p.mustprotect and not jwse_header_param.mustprotect:
+                raise InvalidJWSERegOperation('Header specified should be'
+                                              'a protected header')
+            else:
+                del self._registry[h]
+
+        self._registry[h] = jwse_header_param
+
+    def __len__(self):
+        return self._registry.__len__()

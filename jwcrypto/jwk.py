@@ -18,10 +18,76 @@ from jwcrypto.common import base64url_decode, base64url_encode
 from jwcrypto.common import json_decode, json_encode
 
 
-# RFC 7518 - 7.4
+class UnimplementedOKPCurveKey(object):
+    @classmethod
+    def generate(cls):
+        raise NotImplementedError
+
+    @classmethod
+    def from_public_bytes(cls, *args):
+        raise NotImplementedError
+
+    @classmethod
+    def from_private_bytes(cls, *args):
+        raise NotImplementedError
+
+
+ImplementedOkpCurves = []
+
+
+# Handle the best we can older versions of python cryptography that
+# do not yet implement these interfaces properly
+try:
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+        Ed25519PublicKey, Ed25519PrivateKey
+    )
+    ImplementedOkpCurves.append('Ed25519')
+except ImportError:
+    Ed25519PublicKey = UnimplementedOKPCurveKey
+    Ed25519PrivateKey = UnimplementedOKPCurveKey
+try:
+    from cryptography.hazmat.primitives.asymmetric.ed448 import (
+        Ed448PublicKey, Ed448PrivateKey
+    )
+    ImplementedOkpCurves.append('Ed448')
+except ImportError:
+    Ed448PublicKey = UnimplementedOKPCurveKey
+    Ed448PrivateKey = UnimplementedOKPCurveKey
+try:
+    from cryptography.hazmat.primitives.asymmetric.x25519 import (
+        X25519PublicKey, X25519PrivateKey
+    )
+    priv_bytes = getattr(X25519PrivateKey, 'from_private_bytes', None)
+    if priv_bytes is None:
+        raise ImportError
+    ImplementedOkpCurves.append('X25519')
+except ImportError:
+    X25519PublicKey = UnimplementedOKPCurveKey
+    X25519PrivateKey = UnimplementedOKPCurveKey
+try:
+    from cryptography.hazmat.primitives.asymmetric.x448 import (
+        X448PublicKey, X448PrivateKey
+    )
+    ImplementedOkpCurves.append('X448')
+except ImportError:
+    X448PublicKey = UnimplementedOKPCurveKey
+    X448PrivateKey = UnimplementedOKPCurveKey
+
+
+_OKP_CURVE = namedtuple('Name', 'pubkey privkey')
+_OKP_CURVES_TABLE = {
+    'Ed25519': _OKP_CURVE(Ed25519PublicKey, Ed25519PrivateKey),
+    'Ed448': _OKP_CURVE(Ed448PublicKey, Ed448PrivateKey),
+    'X25519': _OKP_CURVE(X25519PublicKey, X25519PrivateKey),
+    'X448': _OKP_CURVE(X448PublicKey, X448PrivateKey)
+}
+
+
+# RFC 7518 - 7.4 , RFC 8037 - 5
 JWKTypesRegistry = {'EC': 'Elliptic Curve',
                     'RSA': 'RSA',
-                    'oct': 'Octet sequence'}
+                    'oct': 'Octet sequence',
+                    'OKP': 'Octet Key Pair'}
 """Registry of valid Key Types"""
 
 
@@ -31,7 +97,7 @@ JWKTypesRegistry = {'EC': 'Elliptic Curve',
 class ParmType(Enum):
     name = 'A string with a name'
     b64 = 'Base64url Encoded'
-    b64U = 'Base64urlUint Encoded'
+    b64u = 'Base64urlUint Encoded'
     unsupported = 'Unsupported Parameter'
 
 
@@ -45,21 +111,26 @@ JWKValuesRegistry = {
     },
     'RSA': {
         'n': JWKParameter('Modulus', True, True, ParmType.b64),
-        'e': JWKParameter('Exponent', True, True, ParmType.b64U),
-        'd': JWKParameter('Private Exponent', False, False, ParmType.b64U),
-        'p': JWKParameter('First Prime Factor', False, False, ParmType.b64U),
-        'q': JWKParameter('Second Prime Factor', False, False, ParmType.b64U),
+        'e': JWKParameter('Exponent', True, True, ParmType.b64u),
+        'd': JWKParameter('Private Exponent', False, False, ParmType.b64u),
+        'p': JWKParameter('First Prime Factor', False, False, ParmType.b64u),
+        'q': JWKParameter('Second Prime Factor', False, False, ParmType.b64u),
         'dp': JWKParameter('First Factor CRT Exponent',
-                           False, False, ParmType.b64U),
+                           False, False, ParmType.b64u),
         'dq': JWKParameter('Second Factor CRT Exponent',
-                           False, False, ParmType.b64U),
+                           False, False, ParmType.b64u),
         'qi': JWKParameter('First CRT Coefficient',
-                           False, False, ParmType.b64U),
+                           False, False, ParmType.b64u),
         'oth': JWKParameter('Other Primes Info',
                             False, False, ParmType.unsupported),
     },
     'oct': {
         'k': JWKParameter('Key Value', False, True, ParmType.b64),
+    },
+    'OKP': {
+        'crv': JWKParameter('Curve', True, True, ParmType.name),
+        'x': JWKParameter('Public Key', True, True, ParmType.b64),
+        'd': JWKParameter('Private Key', False, False, ParmType.b64),
     }
 }
 """Registry of valid key values"""
@@ -77,12 +148,18 @@ JWKParamsRegistry = {
     'x5t#S256': JWKParameter('X.509 Certificate SHA-256 Thumbprint',
                              True, None, None)
 }
-"""Regstry of valid key parameters"""
+"""Registry of valid key parameters"""
 
-# RFC 7518 - 7.6
+# RFC 7518 - 7.6 , RFC 8037 - 5
+# secp256k1 - https://tools.ietf.org/html/draft-ietf-cose-webauthn-algorithms
 JWKEllipticCurveRegistry = {'P-256': 'P-256 curve',
                             'P-384': 'P-384 curve',
-                            'P-521': 'P-521 curve'}
+                            'P-521': 'P-521 curve',
+                            'secp256k1': 'SECG secp256k1 curve',
+                            'Ed25519': 'Ed25519 signature algorithm key pairs',
+                            'Ed448': 'Ed448 signature algorithm key pairs',
+                            'X25519': 'X25519 function key pairs',
+                            'X448': 'X448 function key pairs'}
 """Registry of allowed Elliptic Curves"""
 
 # RFC 7517 - 8.2
@@ -105,7 +182,8 @@ JWKOperationsRegistry = {'sign': 'Compute digital Signature or MAC',
 
 JWKpycaCurveMap = {'secp256r1': 'P-256',
                    'secp384r1': 'P-384',
-                   'secp521r1': 'P-521'}
+                   'secp521r1': 'P-521',
+                   'secp256k1': 'secp256k1'}
 
 
 class InvalidJWKType(JWException):
@@ -203,7 +281,7 @@ class JWK(object):
         always be provided and its value must be a valid one as defined
         by the 'IANA JSON Web Key Types registry' and specified in the
         :data:`JWKTypesRegistry` variable. The valid key parameters per
-        key type are defined in the :data:`JWKValuesregistry` variable.
+        key type are defined in the :data:`JWKValuesRegistry` variable.
 
         To generate a new random key call the class method generate() with
         the appropriate 'kty' parameter, and other parameters as needed (key
@@ -212,12 +290,13 @@ class JWK(object):
         Valid options per type, when generating new keys:
          * oct: size(int)
          * RSA: public_exponent(int), size(int)
-         * EC: curve(str) (one of P-256, P-384, P-521)
+         * EC: crv(str) (one of P-256, P-384, P-521, secp256k1)
+         * OKP: crv(str) (one of Ed25519, Ed448, X25519, X448)
 
         Deprecated:
         Alternatively if the 'generate' parameter is provided, with a
         valid key type as value then a new key will be generated according
-        to the defaults or provided key strenght options (type specific).
+        to the defaults or provided key strength options (type specific).
 
         :raises InvalidJWKType: if the key type is invalid
         :raises InvalidJWKValue: if incorrect or inconsistent parameters
@@ -274,9 +353,17 @@ class JWK(object):
         params['k'] = base64url_encode(key)
         self.import_key(**params)
 
-    def _encode_int(self, i):
-        intg = hex(i).rstrip("L").lstrip("0x")
-        return base64url_encode(unhexlify((len(intg) % 2) * '0' + intg))
+    def _encode_int(self, i, bit_size=None):
+        extend = 0
+        if bit_size is not None:
+            extend = ((bit_size + 7) // 8) * 2
+        hexi = hex(i).rstrip("L").lstrip("0x")
+        hexl = len(hexi)
+        if extend > hexl:
+            extend -= hexl
+        else:
+            extend = hexl % 2
+        return base64url_encode(unhexlify(extend * '0' + hexi))
 
     def _generate_RSA(self, params):
         pubexp = 65537
@@ -317,6 +404,10 @@ class JWK(object):
             return ec.SECP384R1()
         elif name == 'P-521':
             return ec.SECP521R1()
+        elif name == 'secp256k1':
+            return ec.SECP256K1()
+        elif name in _OKP_CURVES_TABLE:
+            return name
         else:
             raise InvalidJWKValue('Unknown Elliptic Curve Type')
 
@@ -334,12 +425,13 @@ class JWK(object):
 
     def _import_pyca_pri_ec(self, key, **params):
         pn = key.private_numbers()
+        key_size = pn.public_numbers.curve.key_size
         params.update(
             kty='EC',
             crv=JWKpycaCurveMap[key.curve.name],
-            x=self._encode_int(pn.public_numbers.x),
-            y=self._encode_int(pn.public_numbers.y),
-            d=self._encode_int(pn.private_value)
+            x=self._encode_int(pn.public_numbers.x, key_size),
+            y=self._encode_int(pn.public_numbers.y, key_size),
+            d=self._encode_int(pn.private_value, key_size)
         )
         self.import_key(**params)
 
@@ -350,6 +442,46 @@ class JWK(object):
             crv=JWKpycaCurveMap[key.curve.name],
             x=self._encode_int(pn.x),
             y=self._encode_int(pn.y),
+        )
+        self.import_key(**params)
+
+    def _generate_OKP(self, params):
+        if 'crv' not in params:
+            raise InvalidJWKValue('Must specify "crv" for OKP key generation')
+        try:
+            key = _OKP_CURVES_TABLE[params['crv']].privkey.generate()
+        except KeyError:
+            raise InvalidJWKValue('"%s" is not a supported curve for the '
+                                  'OKP key type' % params['crv'])
+        self._import_pyca_pri_okp(key, **params)
+
+    def _okp_curve_from_pyca_key(self, key):
+        for name, val in iteritems(_OKP_CURVES_TABLE):
+            if isinstance(key, (val.pubkey, val.privkey)):
+                return name
+        raise InvalidJWKValue('Invalid OKP Key object %r' % key)
+
+    def _import_pyca_pri_okp(self, key, **params):
+        params.update(
+            kty='OKP',
+            crv=self._okp_curve_from_pyca_key(key),
+            d=base64url_encode(key.private_bytes(
+                serialization.Encoding.Raw,
+                serialization.PrivateFormat.Raw,
+                serialization.NoEncryption())),
+            x=base64url_encode(key.public_key().public_bytes(
+                serialization.Encoding.Raw,
+                serialization.PublicFormat.Raw))
+        )
+        self.import_key(**params)
+
+    def _import_pyca_pub_okp(self, key, **params):
+        params.update(
+            kty='OKP',
+            crv=self._okp_curve_from_pyca_key(key),
+            x=base64url_encode(key.public_bytes(
+                serialization.Encoding.Raw,
+                serialization.PublicFormat.Raw))
         )
         self.import_key(**params)
 
@@ -385,7 +517,7 @@ class JWK(object):
                     raise InvalidJWKValue(
                         '"%s" is not base64url encoded' % name
                     )
-            if val[3] == ParmType.b64U and name in self._key:
+            if val[3] == ParmType.b64u and name in self._key:
                 # Check that the value is Base64urlUInt encoded
                 try:
                     self._decode_int(self._key[name])
@@ -444,10 +576,10 @@ class JWK(object):
         obj.import_key(**jkey)
         return obj
 
-    def export(self, private_key=True):
+    def export(self, private_key=True, as_dict=False):
         """Exports the key in the standard JSON format.
         Exports the key regardless of type, if private_key is False
-        and the key is_symmetric an exceptionis raised.
+        and the key is_symmetric an exception is raised.
 
         :param private_key(bool): Whether to export the private key.
                                   Defaults to True.
@@ -455,16 +587,20 @@ class JWK(object):
         if private_key is True:
             # Use _export_all for backwards compatibility, as this
             # function allows to export symmetrict keys too
-            return self._export_all()
-        else:
-            return self.export_public()
+            return self._export_all(as_dict)
 
-    def export_public(self):
+        return self.export_public(as_dict)
+
+    def export_public(self, as_dict=False):
         """Exports the public key in the standard JSON format.
         It fails if one is not available like when this function
         is called on a symmetric key.
+
+        :param as_dict(bool): If set to True export as python dict not JSON
         """
         pub = self._public_params()
+        if as_dict is True:
+            return pub
         return json_encode(pub)
 
     def _public_params(self):
@@ -482,24 +618,28 @@ class JWK(object):
                 pub[param] = self._key[param]
         return pub
 
-    def _export_all(self):
+    def _export_all(self, as_dict=False):
         d = dict()
         d.update(self._params)
         d.update(self._key)
         d.update(self._unknown)
+        if as_dict is True:
+            return d
         return json_encode(d)
 
-    def export_private(self):
+    def export_private(self, as_dict=False):
         """Export the private key in the standard JSON format.
         It fails for a JWK that has only a public key or is symmetric.
+
+        :param as_dict(bool): If set to True export as python dict not JSON
         """
         if self.has_private:
-            return self._export_all()
+            return self._export_all(as_dict)
         raise InvalidJWKType("No private key available")
 
-    def export_symmetric(self):
+    def export_symmetric(self, as_dict=False):
         if self.is_symmetric:
-            return self._export_all()
+            return self._export_all(as_dict)
         raise InvalidJWKType("Not a symmetric key")
 
     def public(self):
@@ -547,8 +687,8 @@ class JWK(object):
     @property
     def key_curve(self):
         """The Curve Name."""
-        if self._params['kty'] != 'EC':
-            raise InvalidJWKType('Not an EC key')
+        if self._params['kty'] not in ['EC', 'OKP']:
+            raise InvalidJWKType('Not an EC or OKP key')
         return self._key['crv']
 
     def get_curve(self, arg):
@@ -556,12 +696,12 @@ class JWK(object):
 
         :param arg: an optional curve name
 
-        :raises InvalidJWKType: the key is not an EC key.
+        :raises InvalidJWKType: the key is not an EC or OKP key.
         :raises InvalidJWKValue: if the curve names is invalid.
         """
         k = self._key
-        if self._params['kty'] != 'EC':
-            raise InvalidJWKType('Not an EC key')
+        if self._params['kty'] not in ['EC', 'OKP']:
+            raise InvalidJWKType('Not an EC or OKP key')
         if arg and k['crv'] != arg:
             raise InvalidJWKValue('Curve requested is "%s", but '
                                   'key curve is "%s"' % (arg, k['crv']))
@@ -605,6 +745,22 @@ class JWK(object):
         return ec.EllipticCurvePrivateNumbers(self._decode_int(k['d']),
                                               self._ec_pub(k, curve))
 
+    def _okp_pub(self, k):
+        try:
+            pubkey = _OKP_CURVES_TABLE[k['crv']].pubkey
+        except KeyError:
+            raise InvalidJWKValue('Unknown curve "%s"' % k['crv'])
+
+        return pubkey.from_public_bytes(base64url_decode(k['x']))
+
+    def _okp_pri(self, k):
+        try:
+            privkey = _OKP_CURVES_TABLE[k['crv']].privkey
+        except KeyError:
+            raise InvalidJWKValue('Unknown curve "%s"' % k['crv'])
+
+        return privkey.from_private_bytes(base64url_decode(k['d']))
+
     def _get_public_key(self, arg=None):
         if self._params['kty'] == 'oct':
             return self._key['k']
@@ -612,6 +768,8 @@ class JWK(object):
             return self._rsa_pub(self._key).public_key(default_backend())
         elif self._params['kty'] == 'EC':
             return self._ec_pub(self._key, arg).public_key(default_backend())
+        elif self._params['kty'] == 'OKP':
+            return self._okp_pub(self._key)
         else:
             raise NotImplementedError
 
@@ -622,16 +780,18 @@ class JWK(object):
             return self._rsa_pri(self._key).private_key(default_backend())
         elif self._params['kty'] == 'EC':
             return self._ec_pri(self._key, arg).private_key(default_backend())
+        elif self._params['kty'] == 'OKP':
+            return self._okp_pri(self._key)
         else:
             raise NotImplementedError
 
     def get_op_key(self, operation=None, arg=None):
-        """Get the key object associated to the requested opration.
+        """Get the key object associated to the requested operation.
         For example the public RSA key for the 'verify' operation or
         the private EC key for the 'decrypt' operation.
 
         :param operation: The requested operation.
-         The valid set of operations is availble in the
+         The valid set of operations is available in the
          :data:`JWKOperationsRegistry` registry.
         :param arg: an optional, context specific, argument
          For example a curve name.
@@ -673,6 +833,10 @@ class JWK(object):
             self._import_pyca_pri_ec(key)
         elif isinstance(key, ec.EllipticCurvePublicKey):
             self._import_pyca_pub_ec(key)
+        elif isinstance(key, (Ed25519PrivateKey, Ed448PrivateKey)):
+            self._import_pyca_pri_okp(key)
+        elif isinstance(key, (Ed25519PublicKey, Ed448PublicKey)):
+            self._import_pyca_pub_okp(key)
         else:
             raise InvalidJWKValue('Unknown key object %r' % key)
 
@@ -791,7 +955,7 @@ class _JWKkeys(set):
 class JWKSet(dict):
     """A set of JWK objects.
 
-    Inherits from the standard 'dict' bultin type.
+    Inherits from the standard 'dict' builtin type.
     Creates a special key 'keys' that is of a type derived from 'set'
     The 'keys' attribute accepts only :class:`jwcrypto.jwk.JWK` elements.
     """
@@ -819,26 +983,31 @@ class JWKSet(dict):
     def add(self, elem):
         self['keys'].add(elem)
 
-    def export(self, private_keys=True):
-        """Exports a RFC 7517 keyset using the standard JSON format
+    def export(self, private_keys=True, as_dict=False):
+        """Exports a RFC 7517 key set.
+           Exports as json by default, or as dict if requested.
 
         :param private_key(bool): Whether to export private keys.
                                   Defaults to True.
+        :param as_dict(bool): Whether to return a dict instead of
+                              a JSON object
         """
         exp_dict = dict()
         for k, v in iteritems(self):
             if k == 'keys':
                 keys = list()
                 for jwk in v:
-                    keys.append(json_decode(jwk.export(private_keys)))
+                    keys.append(jwk.export(private_keys, as_dict=True))
                 v = keys
             exp_dict[k] = v
+        if as_dict is True:
+            return exp_dict
         return json_encode(exp_dict)
 
     def import_keyset(self, keyset):
-        """Imports a RFC 7517 keyset using the standard JSON format.
+        """Imports a RFC 7517 key set using the standard JSON format.
 
-        :param keyset: The RFC 7517 representation of a JOSE Keyset.
+        :param keyset: The RFC 7517 representation of a JOSE key set.
         """
         try:
             jwkset = json_decode(keyset)
@@ -857,9 +1026,9 @@ class JWKSet(dict):
 
     @classmethod
     def from_json(cls, keyset):
-        """Creates a RFC 7517 keyset from the standard JSON format.
+        """Creates a RFC 7517 key set from the standard JSON format.
 
-        :param keyset: The RFC 7517 representation of a JOSE Keyset.
+        :param keyset: The RFC 7517 representation of a JOSE key set.
         """
         obj = cls()
         obj.import_keyset(keyset)

@@ -1,33 +1,27 @@
 # Copyright (C) 2015 JWCrypto Project Contributors - see LICENSE file
 
-from collections import namedtuple
-
 from jwcrypto.common import JWException
+from jwcrypto.common import JWSEHeaderParameter, JWSEHeaderRegistry
 from jwcrypto.common import base64url_decode, base64url_encode
 from jwcrypto.common import json_decode, json_encode
 from jwcrypto.jwa import JWA
 from jwcrypto.jwk import JWK
 
-
-# RFC 7515 - 9.1
-# name: (description, supported?)
-JWSHeaderParameter = namedtuple('Parameter',
-                                'description mustprotect supported')
 JWSHeaderRegistry = {
-    'alg': JWSHeaderParameter('Algorithm', False, True),
-    'jku': JWSHeaderParameter('JWK Set URL', False, False),
-    'jwk': JWSHeaderParameter('JSON Web Key', False, False),
-    'kid': JWSHeaderParameter('Key ID', False, True),
-    'x5u': JWSHeaderParameter('X.509 URL', False, False),
-    'x5c': JWSHeaderParameter('X.509 Certificate Chain', False, False),
-    'x5t': JWSHeaderParameter(
-        'X.509 Certificate SHA-1 Thumbprint', False, False),
-    'x5t#S256': JWSHeaderParameter(
-        'X.509 Certificate SHA-256 Thumbprint', False, False),
-    'typ': JWSHeaderParameter('Type', False, True),
-    'cty': JWSHeaderParameter('Content Type', False, True),
-    'crit': JWSHeaderParameter('Critical', True, True),
-    'b64': JWSHeaderParameter('Base64url-Encode Payload', True, True)
+    'alg': JWSEHeaderParameter('Algorithm', False, True, None),
+    'jku': JWSEHeaderParameter('JWK Set URL', False, False, None),
+    'jwk': JWSEHeaderParameter('JSON Web Key', False, False, None),
+    'kid': JWSEHeaderParameter('Key ID', False, True, None),
+    'x5u': JWSEHeaderParameter('X.509 URL', False, False, None),
+    'x5c': JWSEHeaderParameter('X.509 Certificate Chain', False, False, None),
+    'x5t': JWSEHeaderParameter(
+        'X.509 Certificate SHA-1 Thumbprint', False, False, None),
+    'x5t#S256': JWSEHeaderParameter(
+        'X.509 Certificate SHA-256 Thumbprint', False, False, None),
+    'typ': JWSEHeaderParameter('Type', False, True, None),
+    'cty': JWSEHeaderParameter('Content Type', False, True, None),
+    'crit': JWSEHeaderParameter('Critical', True, True, None),
+    'b64': JWSEHeaderParameter('Base64url-Encode Payload', True, True, None)
 }
 """Registry of valid header parameters"""
 
@@ -35,7 +29,8 @@ default_allowed_algs = [
     'HS256', 'HS384', 'HS512',
     'RS256', 'RS384', 'RS512',
     'ES256', 'ES384', 'ES512',
-    'PS256', 'PS384', 'PS512']
+    'PS256', 'PS384', 'PS512',
+    'EdDSA']
 """Default allowed algorithms"""
 
 
@@ -178,16 +173,20 @@ class JWS(object):
     This object represent a JWS token.
     """
 
-    def __init__(self, payload=None):
+    def __init__(self, payload=None, header_registry=None):
         """Creates a JWS object.
 
         :param payload(bytes): An arbitrary value (optional).
+        :param header_registry: Optional additions to the header registry
         """
         self.objects = dict()
         if payload:
             self.objects['payload'] = payload
         self.verifylog = None
         self._allowed_algs = None
+        self.header_registry = JWSEHeaderRegistry(JWSHeaderRegistry)
+        if header_registry:
+            self.header_registry.update(header_registry)
 
     @property
     def allowed_algs(self):
@@ -213,6 +212,7 @@ class JWS(object):
         return self.objects.get('valid', False)
 
     # TODO: allow caller to specify list of headers it understands
+    # FIXME: Merge and check to be changed to two separate functions
     def _merge_check_headers(self, protected, *headers):
         header = None
         crit = []
@@ -221,11 +221,11 @@ class JWS(object):
                 crit = protected['crit']
                 # Check immediately if we support these critical headers
                 for k in crit:
-                    if k not in JWSHeaderRegistry:
+                    if k not in self.header_registry:
                         raise InvalidJWSObject(
                             'Unknown critical header: "%s"' % k)
                     else:
-                        if not JWSHeaderRegistry[k][1]:
+                        if not self.header_registry[k].supported:
                             raise InvalidJWSObject(
                                 'Unsupported critical header: "%s"' % k)
             header = protected
@@ -239,8 +239,8 @@ class JWS(object):
             if header is None:
                 header = dict()
             for h in list(hn.keys()):
-                if h in JWSHeaderRegistry:
-                    if JWSHeaderRegistry[h].mustprotect:
+                if h in self.header_registry:
+                    if self.header_registry[h].mustprotect:
                         raise InvalidJWSObject('"%s" must be protected' % h)
                 if h in header:
                     raise InvalidJWSObject('Duplicate header: "%s"' % h)
@@ -266,7 +266,12 @@ class JWS(object):
                 raise InvalidJWSSignature('Invalid Unprotected header')
 
         # Merge and check (critical) headers
-        self._merge_check_headers(p, header)
+        chk_hdrs = self._merge_check_headers(p, header)
+        for hdr in chk_hdrs:
+            if hdr in self.header_registry:
+                if not self.header_registry.check_header(hdr, self):
+                    raise InvalidJWSSignature('Failed header check')
+
         # check 'alg' is present
         if alg is None and 'alg' not in p:
             raise InvalidJWSSignature('No "alg" in headers')
@@ -321,7 +326,7 @@ class JWS(object):
                 except Exception as e:  # pylint: disable=broad-except
                     self.verifylog.append('Failed: [%s]' % repr(e))
         else:
-            raise InvalidJWSSignature('No signatures availble')
+            raise InvalidJWSSignature('No signatures available')
 
         if not self.is_valid:
             raise InvalidJWSSignature('Verification failed for all '
@@ -368,7 +373,7 @@ class JWS(object):
         :param alg: The signing algorithm (optional). usually the algorithm
          is known as it is provided with the JOSE Headers of the token.
 
-        :raises InvalidJWSObject: if the raw object is an invaid JWS token.
+        :raises InvalidJWSObject: if the raw object is an invalid JWS token.
         :raises InvalidJWSSignature: if the verification fails.
         """
         self.objects = dict()
@@ -419,7 +424,7 @@ class JWS(object):
         :param alg: An optional algorithm name. If already provided as an
          element of the protected or unprotected header it can be safely
          omitted.
-        :param potected: The Protected Header (optional)
+        :param protected: The Protected Header (optional)
         :param header: The Unprotected Header (optional)
 
         :raises InvalidJWSObject: if no payload has been set on the object,
@@ -475,7 +480,9 @@ class JWS(object):
         if alg is None:
             raise ValueError('"alg" not specified')
 
-        c = JWSCore(alg, key, protected, self.objects['payload'])
+        c = JWSCore(
+            alg, key, protected, self.objects['payload'], self.allowed_algs
+        )
         sig = c.sign()
 
         o = dict()
@@ -511,7 +518,7 @@ class JWS(object):
          representation, otherwise generates a standard JSON format.
 
         :raises InvalidJWSOperation: if the object cannot serialized
-         with the compact representation and `compat` is True.
+         with the compact representation and `compact` is True.
         :raises InvalidJWSSignature: if no signature has been added
          to the object, or no valid signature can be found.
         """
