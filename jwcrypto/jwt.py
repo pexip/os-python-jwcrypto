@@ -108,6 +108,7 @@ class JWTInvalidClaimFormat(JWException):
         super(JWTInvalidClaimFormat, self).__init__(msg)
 
 
+# deprecated and not used anymore
 class JWTMissingKeyID(JWException):
     """Json Web Token is missing key id.
 
@@ -161,7 +162,7 @@ class JWT(object):
          the token. A (:class:`jwcrypto.jwk.JWKSet`) can also be used.
         :param algs: An optional list of allowed algorithms
         :param default_claims: An optional dict with default values for
-         registred claims. A None value for NumericDate type claims
+         registered claims. A None value for NumericDate type claims
          will cause generation according to system time. Only the values
          from RFC 7519 - 4.1 are evaluated.
         :param check_claims: An optional dict of claims that must be
@@ -170,7 +171,7 @@ class JWT(object):
 
         Note: either the header,claims or jwt,key parameters should be
         provided as a deserialization operation (which occurs if the jwt
-        is provided will wipe any header os claim provided by setting
+        is provided) will wipe any header or claim provided by setting
         those obtained from the deserialization of the jwt token.
 
         Note: if check_claims is not provided the 'exp' and 'nbf' claims
@@ -187,6 +188,7 @@ class JWT(object):
         self._check_claims = None
         self._leeway = 60  # 1 minute clock skew allowed
         self._validity = 600  # 10 minutes validity (up to 11 with leeway)
+        self.deserializelog = None
 
         if header:
             self.header = header
@@ -256,8 +258,8 @@ class JWT(object):
         return self._leeway
 
     @leeway.setter
-    def leeway(self, l):
-        self._leeway = int(l)
+    def leeway(self, lwy):
+        self._leeway = int(lwy)
 
     @property
     def validity(self):
@@ -416,12 +418,14 @@ class JWT(object):
 
         Creates a JWS token with the header as the JWS protected header and
         the claims as the payload. See (:class:`jwcrypto.jws.JWS`) for
-        details on the exceptions that may be reaised.
+        details on the exceptions that may be raised.
 
         :param key: A (:class:`jwcrypto.jwk.JWK`) key.
         """
 
         t = JWS(self.claims)
+        if self._algs:
+            t.allowed_algs = self._algs
         t.add_signature(key, protected=self.header)
         self.token = t
 
@@ -430,7 +434,7 @@ class JWT(object):
 
         Creates a JWE token with the header as the JWE protected header and
         the claims as the plaintext. See (:class:`jwcrypto.jwe.JWE`) for
-        details on the exceptions that may be reaised.
+        details on the exceptions that may be raised.
 
         :param key: A (:class:`jwcrypto.jwk.JWK`) key.
         """
@@ -462,28 +466,37 @@ class JWT(object):
         if self._algs:
             self.token.allowed_algs = self._algs
 
+        self.deserializelog = list()
         # now deserialize and also decrypt/verify (or raise) if we
         # have a key
         if key is None:
             self.token.deserialize(jwt, None)
         elif isinstance(key, JWK):
             self.token.deserialize(jwt, key)
+            self.deserializelog.append("Success")
         elif isinstance(key, JWKSet):
             self.token.deserialize(jwt, None)
-            if 'kid' not in self.token.jose_header:
-                raise JWTMissingKeyID('No key ID in JWT header')
-
-            token_key = key.get_key(self.token.jose_header['kid'])
-            if not token_key:
-                raise JWTMissingKey('Key ID %s not in key set'
-                                    % self.token.jose_header['kid'])
-
-            if isinstance(self.token, JWE):
-                self.token.decrypt(token_key)
-            elif isinstance(self.token, JWS):
-                self.token.verify(token_key)
+            if 'kid' in self.token.jose_header:
+                kid_key = key.get_key(self.token.jose_header['kid'])
+                if not kid_key:
+                    raise JWTMissingKey('Key ID %s not in key set'
+                                        % self.token.jose_header['kid'])
+                self.token.deserialize(jwt, kid_key)
             else:
-                raise RuntimeError("Unknown Token Type")
+                for k in key:
+                    try:
+                        self.token.deserialize(jwt, k)
+                        self.deserializelog.append("Success")
+                        break
+                    except Exception as e:  # pylint: disable=broad-except
+                        keyid = k.key_id
+                        if keyid is None:
+                            keyid = k.thumbprint()
+                        self.deserializelog.append('Key [%s] failed: [%s]' % (
+                            keyid, repr(e)))
+                        continue
+                if "Success" not in self.deserializelog:
+                    raise JWTMissingKey('No working key found in key set')
         else:
             raise ValueError("Unrecognized Key Type")
 
@@ -500,7 +513,7 @@ class JWT(object):
         Note: the compact parameter is provided for general compatibility
         with the serialize() functions of :class:`jwcrypto.jws.JWS` and
         :class:`jwcrypto.jwe.JWE` so that these objects can all be used
-        interchangeably. However the only valid JWT representtion is the
+        interchangeably. However the only valid JWT representation is the
         compact representation.
         """
         return self.token.serialize(compact)
