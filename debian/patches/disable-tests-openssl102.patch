@@ -1,0 +1,34 @@
+--- a/jwcrypto/tests.py
++++ b/jwcrypto/tests.py
+@@ -356,6 +356,7 @@
+         key = jwk.JWK.generate(kty='EC', curve='secp256k1')
+         key.get_curve('secp256k1')
+ 
++    @unittest.skip("Not in openssl 1.0.2")
+     def test_generate_OKP_keys(self):
+         for crv in jwk.ImplementedOkpCurves:
+             key = jwk.JWK.generate(kty='OKP', crv=crv)
+@@ -519,6 +520,7 @@
+                 k.thumbprint(),
+                 PublicKeys_EdDsa['thumbprints'][i])
+ 
++    @unittest.skip("Not in openssl 1.0.2")
+     def test_pem_okp(self):
+         payload = b'Imported private Ed25519'
+         prikey = jwk.JWK.from_pem(Ed25519PrivatePEM)
+@@ -842,6 +844,7 @@
+         with self.assertRaises(InvalidJWSERegOperation):
+             jws.JWS(A6_example['payload'], header_registry=newreg)
+ 
++    @unittest.skip("Not in openssl 1.0.2")
+     def test_EdDsa_signing_and_verification(self):
+         examples = []
+         if 'Ed25519' in jwk.ImplementedOkpCurves:
+@@ -1186,6 +1189,7 @@
+         with self.assertRaises(InvalidJWSERegOperation):
+             jwe.JWE(header_registry=newreg)
+ 
++    @unittest.skip("Not in openssl 1.0.2")
+     def test_X25519_ECDH(self):
+         plaintext = b"plain"
+         protected = json_encode(X25519_Protected_Header_no_epk)
