@@ -1,8 +1,8 @@
 # Copyright (C) 2016 JWCrypto Project Contributors - see LICENSE file
 
-import abc
 import os
 import struct
+from abc import ABCMeta, abstractmethod
 from binascii import hexlify, unhexlify
 
 from cryptography.exceptions import InvalidSignature
@@ -17,8 +17,6 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.keywrap import aes_key_unwrap, aes_key_wrap
 from cryptography.hazmat.primitives.padding import PKCS7
 
-import six
-
 from jwcrypto.common import InvalidCEKeyLength
 from jwcrypto.common import InvalidJWAAlgorithm
 from jwcrypto.common import InvalidJWEKeyLength
@@ -31,33 +29,32 @@ from jwcrypto.jwk import JWK
 # Implements RFC 7518 - JSON Web Algorithms (JWA)
 
 
-@six.add_metaclass(abc.ABCMeta)
-class JWAAlgorithm(object):
+class JWAAlgorithm(metaclass=ABCMeta):
 
-    @abc.abstractproperty
+    @property
+    @abstractmethod
     def name(self):
         """The algorithm Name"""
-        pass
 
-    @abc.abstractproperty
+    @property
+    @abstractmethod
     def description(self):
         """A short description"""
-        pass
 
-    @abc.abstractproperty
+    @property
+    @abstractmethod
     def keysize(self):
         """The actual/recommended/minimum key size"""
-        pass
 
-    @abc.abstractproperty
+    @property
+    @abstractmethod
     def algorithm_usage_location(self):
         """One of 'alg', 'enc' or 'JWK'"""
-        pass
 
-    @abc.abstractproperty
+    @property
+    @abstractmethod
     def algorithm_use(self):
         """One of 'sig', 'kex', 'enc'"""
-        pass
 
 
 def _bitsize(x):
@@ -70,7 +67,7 @@ def _inbytes(x):
 
 def _randombits(x):
     if x % 8 != 0:
-        raise ValueError("lenght must be a multiple of 8")
+        raise ValueError("length must be a multiple of 8")
     return os.urandom(_inbytes(x))
 
 
@@ -85,7 +82,7 @@ def _decode_int(n):
     return int(hexlify(n), 16)
 
 
-class _RawJWS(object):
+class _RawJWS:
 
     def sign(self, key, payload):
         raise NotImplementedError
@@ -161,7 +158,8 @@ class _RawNone(_RawJWS):
         return ''
 
     def verify(self, key, payload, signature):
-        raise InvalidSignature('The "none" signature cannot be verified')
+        if key['kty'] != 'oct' or key.get_op_key() != '':
+            raise InvalidSignature('The "none" signature cannot be verified')
 
 
 class _HS256(_RawHMAC, JWAAlgorithm):
@@ -248,6 +246,18 @@ class _ES256(_RawEC, JWAAlgorithm):
         super(_ES256, self).__init__('P-256', hashes.SHA256())
 
 
+class _ES256K(_RawEC, JWAAlgorithm):
+
+    name = "ES256K"
+    description = "ECDSA using secp256k1 curve and SHA-256"
+    keysize = 256
+    algorithm_usage_location = 'alg'
+    algorithm_use = 'sig'
+
+    def __init__(self):
+        super(_ES256K, self).__init__('secp256k1', hashes.SHA256())
+
+
 class _ES384(_RawEC, JWAAlgorithm):
 
     name = "ES384"
@@ -323,7 +333,7 @@ class _None(_RawNone, JWAAlgorithm):
     algorithm_use = 'sig'
 
 
-class _RawKeyMgmt(object):
+class _RawKeyMgmt:
 
     def wrap(self, key, bitsize, cek, headers):
         raise NotImplementedError
@@ -340,10 +350,10 @@ class _RSA(_RawKeyMgmt):
     def _check_key(self, key):
         if not isinstance(key, JWK):
             raise ValueError('key is not a JWK object')
-        if key.key_type != 'RSA':
-            raise InvalidJWEKeyType('RSA', key.key_type)
+        if key['kty'] != 'RSA':
+            raise InvalidJWEKeyType('RSA', key['kty'])
 
-    # FIXME: get key size and insure > 2048 bits
+    # FIXME: get key size and ensure > 2048 bits
     def wrap(self, key, bitsize, cek, headers):
         self._check_key(key)
         if not cek:
@@ -354,7 +364,7 @@ class _RSA(_RawKeyMgmt):
 
     def unwrap(self, key, bitsize, ek, headers):
         self._check_key(key)
-        rk = key.get_op_key('decrypt')
+        rk = key.get_op_key('unwrapKey')
         cek = rk.decrypt(ek, self.padfn)
         if _bitsize(cek) != bitsize:
             raise InvalidJWEKeyLength(bitsize, _bitsize(cek))
@@ -428,8 +438,8 @@ class _AesKw(_RawKeyMgmt):
     def _get_key(self, key, op):
         if not isinstance(key, JWK):
             raise ValueError('key is not a JWK object')
-        if key.key_type != 'oct':
-            raise InvalidJWEKeyType('oct', key.key_type)
+        if key['kty'] != 'oct':
+            raise InvalidJWEKeyType('oct', key['kty'])
         rk = base64url_decode(key.get_op_key(op))
         if _bitsize(rk) != self.keysize:
             raise InvalidJWEKeyLength(self.keysize, _bitsize(rk))
@@ -490,8 +500,8 @@ class _AesGcmKw(_RawKeyMgmt):
     def _get_key(self, key, op):
         if not isinstance(key, JWK):
             raise ValueError('key is not a JWK object')
-        if key.key_type != 'oct':
-            raise InvalidJWEKeyType('oct', key.key_type)
+        if key['kty'] != 'oct':
+            raise InvalidJWEKeyType('oct', key['kty'])
         rk = base64url_decode(key.get_op_key(op))
         if _bitsize(rk) != self.keysize:
             raise InvalidJWEKeyLength(self.keysize, _bitsize(rk))
@@ -570,10 +580,15 @@ class _Pbes2HsAesKw(_RawKeyMgmt):
         self.aeskwmap = {128: _A128KW, 192: _A192KW, 256: _A256KW}
 
     def _get_key(self, alg, key, p2s, p2c):
-        if isinstance(key, bytes):
-            plain = key
+        if not isinstance(key, JWK):
+            # backwards compatibility for old interface
+            if isinstance(key, bytes):
+                plain = key
+            else:
+                plain = key.encode('utf8')
         else:
-            plain = key.encode('utf8')
+            plain = base64url_decode(key.get_op_key())
+
         salt = bytes(self.name.encode('utf8')) + b'\x00' + p2s
 
         if self.hashsize == 256:
@@ -656,8 +671,8 @@ class _Direct(_RawKeyMgmt, JWAAlgorithm):
     def _check_key(self, key):
         if not isinstance(key, JWK):
             raise ValueError('key is not a JWK object')
-        if key.key_type != 'oct':
-            raise InvalidJWEKeyType('oct', key.key_type)
+        if key['kty'] != 'oct':
+            raise InvalidJWEKeyType('oct', key['kty'])
 
     def wrap(self, key, bitsize, cek, headers):
         self._check_key(key)
@@ -693,8 +708,12 @@ class _EcdhEs(_RawKeyMgmt, JWAAlgorithm):
     def _check_key(self, key):
         if not isinstance(key, JWK):
             raise ValueError('key is not a JWK object')
-        if key.key_type != 'EC':
-            raise InvalidJWEKeyType('EC', key.key_type)
+        if key['kty'] not in ['EC', 'OKP']:
+            raise InvalidJWEKeyType('EC or OKP', key['kty'])
+        if key['kty'] == 'OKP':
+            if key['crv'] not in ['X25519', 'X448']:
+                raise InvalidJWEKeyType('X25519 or X448',
+                                        key['crv'])
 
     def _derive(self, privkey, pubkey, alg, bitsize, headers):
         # OtherInfo is defined in NIST SP 56A 5.8.1.2.1
@@ -718,7 +737,13 @@ class _EcdhEs(_RawKeyMgmt, JWAAlgorithm):
 
         # no SuppPrivInfo
 
-        shared_key = privkey.exchange(ec.ECDH(), pubkey)
+        # Shared Key generation
+        if isinstance(privkey, ec.EllipticCurvePrivateKey):
+            shared_key = privkey.exchange(ec.ECDH(), pubkey)
+        else:
+            # X25519/X448
+            shared_key = privkey.exchange(pubkey)
+
         ckdf = ConcatKDFHash(algorithm=hashes.SHA256(),
                              length=_inbytes(bitsize),
                              otherinfo=otherinfo,
@@ -736,7 +761,7 @@ class _EcdhEs(_RawKeyMgmt, JWAAlgorithm):
         else:
             alg = headers['alg']
 
-        epk = JWK.generate(kty=key.key_type, crv=key.key_curve)
+        epk = JWK.generate(kty=key['kty'], crv=key['crv'])
         dk = self._derive(epk.get_op_key('unwrapKey'),
                           key.get_op_key('wrapKey'),
                           alg, dk_size, headers)
@@ -802,7 +827,28 @@ class _EcdhEsAes256Kw(_EcdhEs):
     algorithm_use = 'kex'
 
 
-class _RawJWE(object):
+class _EdDsa(_RawJWS, JWAAlgorithm):
+
+    name = 'EdDSA'
+    description = 'EdDSA using Ed25519 or Ed448 algorithms'
+    algorithm_usage_location = 'alg'
+    algorithm_use = 'sig'
+    keysize = None
+
+    def sign(self, key, payload):
+        if key['crv'] in ['Ed25519', 'Ed448']:
+            skey = key.get_op_key('sign')
+            return skey.sign(payload)
+        raise NotImplementedError
+
+    def verify(self, key, payload, signature):
+        if key['crv'] in ['Ed25519', 'Ed448']:
+            pkey = key.get_op_key('verify')
+            return pkey.verify(signature, payload)
+        raise NotImplementedError
+
+
+class _RawJWE:
 
     def encrypt(self, k, a, m):
         raise NotImplementedError
@@ -995,7 +1041,7 @@ class _A256Gcm(_AesGcm, JWAAlgorithm):
     algorithm_use = 'enc'
 
 
-class JWA(object):
+class JWA:
     """JWA Signing Algorithms.
 
     This class provides access to all JWA algorithms.
@@ -1009,6 +1055,7 @@ class JWA(object):
         'RS384': _RS384,
         'RS512': _RS512,
         'ES256': _ES256,
+        'ES256K': _ES256K,
         'ES384': _ES384,
         'ES512': _ES512,
         'PS256': _PS256,
@@ -1026,6 +1073,7 @@ class JWA(object):
         'ECDH-ES+A128KW': _EcdhEsAes128Kw,
         'ECDH-ES+A192KW': _EcdhEsAes192Kw,
         'ECDH-ES+A256KW': _EcdhEsAes256Kw,
+        'EdDSA': _EdDsa,
         'A128GCMKW': _A128GcmKw,
         'A192GCMKW': _A192GcmKw,
         'A256GCMKW': _A256GcmKw,
@@ -1052,21 +1100,21 @@ class JWA(object):
         try:
             return cls.instantiate_alg(name, use='sig')
         except KeyError:
-            raise InvalidJWAAlgorithm(
-                '%s is not a valid Signign algorithm name' % name)
+            raise InvalidJWAAlgorithm('%s is not a valid Signing algorithm'
+                                      ' name' % name) from None
 
     @classmethod
     def keymgmt_alg(cls, name):
         try:
             return cls.instantiate_alg(name, use='kex')
         except KeyError:
-            raise InvalidJWAAlgorithm(
-                '%s is not a valid Key Management algorithm name' % name)
+            raise InvalidJWAAlgorithm('%s is not a valid Key Management'
+                                      ' algorithm name' % name) from None
 
     @classmethod
     def encryption_alg(cls, name):
         try:
             return cls.instantiate_alg(name, use='enc')
         except KeyError:
-            raise InvalidJWAAlgorithm(
-                '%s is not a valid Encryption algorithm name' % name)
+            raise InvalidJWAAlgorithm('%s is not a valid Encryption'
+                                      ' algorithm name' % name) from None

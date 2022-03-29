@@ -8,7 +8,6 @@ export PYBUILD_NAME=jwcrypto
 
 override_dh_auto_install:
 	dh_auto_install
-	rm -rf debian/python*-jwcrypto/usr/lib/python*/dist-packages/jwcrypto-*.egg-info
 	find $(CURDIR)/debian/python* -name 'tests*.py' -exec rm '{}' ';'
 	find $(CURDIR)/debian/python* -name 'LICENSE' -exec rm '{}' ';'
 	find $(CURDIR)/debian/python* -name 'README.md' -exec rm '{}' ';'

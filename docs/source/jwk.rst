@@ -3,7 +3,7 @@ JSON Web Key (JWK)
 
 The jwk Module implements the `JSON Web Key`_ standard.
 A JSON Web Key is represented by a JWK object, related utility classes and
-functions are availbale in this module too.
+functions are available in this module too.
 
 .. _JSON Web Key: http://tools.ietf.org/html/rfc7517
 
@@ -69,10 +69,10 @@ Export the key with::
     >>> key.export()
     '{"k":"X6TBlwY2so8EwKZ2TFXM7XHSgWBKQJhcspzYydp5Y-o","kty":"oct"}'
 
-Create a 2048bit RSA keypair::
+Create a 2048bit RSA key pair::
     >>> jwk.JWK.generate(kty='RSA', size=2048)
 
-Create a P-256 EC keypair and export the public key::
+Create a P-256 EC key pair and export the public key::
     >>> key = jwk.JWK.generate(kty='EC', crv='P-256')
     >>> key.export(private_key=False)
     '{"y":"VYlYwBfOTIICojCPfdUjnmkpN-g-lzZKxzjAoFmDRm8",

@@ -3,8 +3,6 @@
 import time
 import uuid
 
-from six import string_types
-
 from jwcrypto.common import JWException, json_decode, json_encode
 from jwcrypto.jwe import JWE
 from jwcrypto.jwk import JWK, JWKSet
@@ -23,9 +21,9 @@ JWTClaimsRegistry = {'iss': 'Issuer',
 
 
 class JWTExpired(JWException):
-    """Json Web Token is expired.
+    """JSON Web Token is expired.
 
-    This exception is raised when a token is expired accoring to its claims.
+    This exception is raised when a token is expired according to its claims.
     """
 
     def __init__(self, message=None, exception=None):
@@ -40,7 +38,7 @@ class JWTExpired(JWException):
 
 
 class JWTNotYetValid(JWException):
-    """Json Web Token is not yet valid.
+    """JSON Web Token is not yet valid.
 
     This exception is raised when a token is not valid yet according to its
     claims.
@@ -58,7 +56,7 @@ class JWTNotYetValid(JWException):
 
 
 class JWTMissingClaim(JWException):
-    """Json Web Token claim is invalid.
+    """JSON Web Token claim is invalid.
 
     This exception is raised when a claim does not match the expected value.
     """
@@ -75,7 +73,7 @@ class JWTMissingClaim(JWException):
 
 
 class JWTInvalidClaimValue(JWException):
-    """Json Web Token claim is invalid.
+    """JSON Web Token claim is invalid.
 
     This exception is raised when a claim does not match the expected value.
     """
@@ -92,7 +90,7 @@ class JWTInvalidClaimValue(JWException):
 
 
 class JWTInvalidClaimFormat(JWException):
-    """Json Web Token claim format is invalid.
+    """JSON Web Token claim format is invalid.
 
     This exception is raised when a claim is not in a valid format.
     """
@@ -108,8 +106,9 @@ class JWTInvalidClaimFormat(JWException):
         super(JWTInvalidClaimFormat, self).__init__(msg)
 
 
+# deprecated and not used anymore
 class JWTMissingKeyID(JWException):
-    """Json Web Token is missing key id.
+    """JSON Web Token is missing key id.
 
     This exception is raised when trying to decode a JWT with a key set
     that does not have a kid value in its header.
@@ -127,7 +126,7 @@ class JWTMissingKeyID(JWException):
 
 
 class JWTMissingKey(JWException):
-    """Json Web Token is using a key not in the key set.
+    """JSON Web Token is using a key not in the key set.
 
     This exception is raised if the key that was used is not available
     in the passed key set.
@@ -144,7 +143,7 @@ class JWTMissingKey(JWException):
         super(JWTMissingKey, self).__init__(msg)
 
 
-class JWT(object):
+class JWT:
     """JSON Web token object
 
     This object represent a generic token.
@@ -161,7 +160,7 @@ class JWT(object):
          the token. A (:class:`jwcrypto.jwk.JWKSet`) can also be used.
         :param algs: An optional list of allowed algorithms
         :param default_claims: An optional dict with default values for
-         registred claims. A None value for NumericDate type claims
+         registered claims. A None value for NumericDate type claims
          will cause generation according to system time. Only the values
          from RFC 7519 - 4.1 are evaluated.
         :param check_claims: An optional dict of claims that must be
@@ -170,7 +169,7 @@ class JWT(object):
 
         Note: either the header,claims or jwt,key parameters should be
         provided as a deserialization operation (which occurs if the jwt
-        is provided will wipe any header os claim provided by setting
+        is provided) will wipe any header or claim provided by setting
         those obtained from the deserialization of the jwt token.
 
         Note: if check_claims is not provided the 'exp' and 'nbf' claims
@@ -187,6 +186,7 @@ class JWT(object):
         self._check_claims = None
         self._leeway = 60  # 1 minute clock skew allowed
         self._validity = 600  # 10 minutes validity (up to 11 with leeway)
+        self.deserializelog = None
 
         if header:
             self.header = header
@@ -195,9 +195,11 @@ class JWT(object):
             self._reg_claims = default_claims
 
         if check_claims is not None:
+            if check_claims is not False:
+                self._check_check_claims(check_claims)
             self._check_claims = check_claims
 
-        if claims:
+        if claims is not None:
             self.claims = claims
 
         if jwt is not None:
@@ -256,8 +258,8 @@ class JWT(object):
         return self._leeway
 
     @leeway.setter
-    def leeway(self, l):
-        self._leeway = int(l)
+    def leeway(self, lwy):
+        self._leeway = int(lwy)
 
     @property
     def validity(self):
@@ -302,30 +304,30 @@ class JWT(object):
         self._add_jti_claim(claims)
 
     def _check_string_claim(self, name, claims):
-        if name not in claims:
+        if name not in claims or claims[name] is None:
             return
-        if not isinstance(claims[name], string_types):
+        if not isinstance(claims[name], str):
             raise JWTInvalidClaimFormat("Claim %s is not a StringOrURI type")
 
     def _check_array_or_string_claim(self, name, claims):
-        if name not in claims:
+        if name not in claims or claims[name] is None:
             return
         if isinstance(claims[name], list):
-            if any(not isinstance(claim, string_types) for claim in claims):
+            if any(not isinstance(claim, str) for claim in claims):
                 raise JWTInvalidClaimFormat(
                     "Claim %s contains non StringOrURI types" % (name, ))
-        elif not isinstance(claims[name], string_types):
+        elif not isinstance(claims[name], str):
             raise JWTInvalidClaimFormat(
                 "Claim %s is not a StringOrURI type" % (name, ))
 
     def _check_integer_claim(self, name, claims):
-        if name not in claims:
+        if name not in claims or claims[name] is None:
             return
         try:
             int(claims[name])
-        except ValueError:
+        except ValueError as e:
             raise JWTInvalidClaimFormat(
-                "Claim %s is not an integer" % (name, ))
+                "Claim %s is not an integer" % (name, )) from e
 
     def _check_exp(self, claim, limit, leeway):
         if claim < limit - leeway:
@@ -345,12 +347,23 @@ class JWT(object):
         self._check_integer_claim('nbf', claims)
         self._check_integer_claim('iat', claims)
         self._check_string_claim('jti', claims)
+        self._check_string_claim('typ', claims)
 
         if self._check_claims is None:
             if 'exp' in claims:
                 self._check_exp(claims['exp'], time.time(), self._leeway)
             if 'nbf' in claims:
                 self._check_nbf(claims['nbf'], time.time(), self._leeway)
+
+    def _check_check_claims(self, check_claims):
+        self._check_string_claim('iss', check_claims)
+        self._check_string_claim('sub', check_claims)
+        self._check_string_claim('aud', check_claims)
+        self._check_integer_claim('exp', check_claims)
+        self._check_integer_claim('nbf', check_claims)
+        self._check_integer_claim('iat', check_claims)
+        self._check_string_claim('jti', check_claims)
+        self._check_string_claim('typ', check_claims)
 
     def _check_provided_claims(self):
         # check_claims can be set to False to skip any check
@@ -361,10 +374,11 @@ class JWT(object):
             claims = json_decode(self.claims)
             if not isinstance(claims, dict):
                 raise ValueError()
-        except ValueError:
+        except ValueError as e:
             if self._check_claims is not None:
-                raise JWTInvalidClaimFormat(
-                    "Claims check requested but claims is not a json dict")
+                raise JWTInvalidClaimFormat("Claims check requested "
+                                            "but claims is not a json "
+                                            "dict") from e
             return
 
         self._check_default_claims(claims)
@@ -405,23 +419,41 @@ class JWT(object):
                 else:
                     self._check_nbf(claims[name], time.time(), self._leeway)
 
+            elif name == 'typ':
+                if value is not None:
+                    if self.norm_typ(value) != self.norm_typ(claims[name]):
+                        raise JWTInvalidClaimValue("Invalid '%s' value. '%s'"
+                                                   " does not normalize to "
+                                                   "'%s'" % (name,
+                                                             claims[name],
+                                                             value))
+
             else:
                 if value is not None and value != claims[name]:
                     raise JWTInvalidClaimValue(
                         "Invalid '%s' value. Expected '%s' got '%s'" % (
                             name, value, claims[name]))
 
+    def norm_typ(self, val):
+        lc = val.lower()
+        if '/' in lc:
+            return lc
+        else:
+            return 'application/' + lc
+
     def make_signed_token(self, key):
         """Signs the payload.
 
         Creates a JWS token with the header as the JWS protected header and
         the claims as the payload. See (:class:`jwcrypto.jws.JWS`) for
-        details on the exceptions that may be reaised.
+        details on the exceptions that may be raised.
 
         :param key: A (:class:`jwcrypto.jwk.JWK`) key.
         """
 
         t = JWS(self.claims)
+        if self._algs:
+            t.allowed_algs = self._algs
         t.add_signature(key, protected=self.header)
         self.token = t
 
@@ -430,12 +462,14 @@ class JWT(object):
 
         Creates a JWE token with the header as the JWE protected header and
         the claims as the plaintext. See (:class:`jwcrypto.jwe.JWE`) for
-        details on the exceptions that may be reaised.
+        details on the exceptions that may be raised.
 
         :param key: A (:class:`jwcrypto.jwk.JWK`) key.
         """
 
         t = JWE(self.claims, self.header)
+        if self._algs:
+            t.allowed_algs = self._algs
         t.add_recipient(key)
         self.token = t
 
@@ -462,28 +496,37 @@ class JWT(object):
         if self._algs:
             self.token.allowed_algs = self._algs
 
+        self.deserializelog = []
         # now deserialize and also decrypt/verify (or raise) if we
         # have a key
         if key is None:
             self.token.deserialize(jwt, None)
         elif isinstance(key, JWK):
             self.token.deserialize(jwt, key)
+            self.deserializelog.append("Success")
         elif isinstance(key, JWKSet):
             self.token.deserialize(jwt, None)
-            if 'kid' not in self.token.jose_header:
-                raise JWTMissingKeyID('No key ID in JWT header')
-
-            token_key = key.get_key(self.token.jose_header['kid'])
-            if not token_key:
-                raise JWTMissingKey('Key ID %s not in key set'
-                                    % self.token.jose_header['kid'])
-
-            if isinstance(self.token, JWE):
-                self.token.decrypt(token_key)
-            elif isinstance(self.token, JWS):
-                self.token.verify(token_key)
+            if 'kid' in self.token.jose_header:
+                kid_key = key.get_key(self.token.jose_header['kid'])
+                if not kid_key:
+                    raise JWTMissingKey('Key ID %s not in key set'
+                                        % self.token.jose_header['kid'])
+                self.token.deserialize(jwt, kid_key)
             else:
-                raise RuntimeError("Unknown Token Type")
+                for k in key:
+                    try:
+                        self.token.deserialize(jwt, k)
+                        self.deserializelog.append("Success")
+                        break
+                    except Exception as e:  # pylint: disable=broad-except
+                        keyid = k.get('kid')
+                        if keyid is None:
+                            keyid = k.thumbprint()
+                        self.deserializelog.append('Key [%s] failed: [%s]' % (
+                            keyid, repr(e)))
+                        continue
+                if "Success" not in self.deserializelog:
+                    raise JWTMissingKey('No working key found in key set')
         else:
             raise ValueError("Unrecognized Key Type")
 
@@ -500,7 +543,7 @@ class JWT(object):
         Note: the compact parameter is provided for general compatibility
         with the serialize() functions of :class:`jwcrypto.jws.JWS` and
         :class:`jwcrypto.jwe.JWE` so that these objects can all be used
-        interchangeably. However the only valid JWT representtion is the
+        interchangeably. However the only valid JWT representation is the
         compact representation.
         """
         return self.token.serialize(compact)
