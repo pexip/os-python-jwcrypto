@@ -1,3 +1,9 @@
+python-jwcrypto (0.8.0-1pexip5) pexip; urgency=medium
+
+  * Remove empty directory in /usr/share/doc/jwcrypto
+
+ -- Huw Jones <huw@pexip.com>  Mon, 07 Nov 2022 12:23:49 +0000
+
 python-jwcrypto (0.8.0-1pexip4) pexip-bullseye; urgency=medium
 
   * Bullseye rebuild for ARM64 inclusion
