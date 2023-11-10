@@ -33,13 +33,13 @@ JWEHeaderRegistry = {
 
 default_allowed_algs = [
     # Key Management Algorithms
-    'RSA1_5', 'RSA-OAEP', 'RSA-OAEP-256',
+    'RSA-OAEP', 'RSA-OAEP-256',
     'A128KW', 'A192KW', 'A256KW',
     'dir',
     'ECDH-ES', 'ECDH-ES+A128KW', 'ECDH-ES+A192KW', 'ECDH-ES+A256KW',
     'A128GCMKW', 'A192GCMKW', 'A256GCMKW',
     'PBES2-HS256+A128KW', 'PBES2-HS384+A192KW', 'PBES2-HS512+A256KW',
-    # Content Encryption Algoritms
+    # Content Encryption Algorithms
     'A128CBC-HS256', 'A192CBC-HS384', 'A256CBC-HS512',
     'A128GCM', 'A192GCM', 'A256GCM']
 """Default allowed algorithms"""
@@ -70,7 +70,7 @@ InvalidJWEKeyType = common.InvalidJWEKeyType
 InvalidJWEOperation = common.InvalidJWEOperation
 
 
-class JWE(object):
+class JWE:
     """JSON Web Encryption object
 
     This object represent a JWE token.
@@ -91,7 +91,7 @@ class JWE(object):
         :param header_registry: Optional additions to the header registry
         """
         self._allowed_algs = None
-        self.objects = dict()
+        self.objects = {}
         self.plaintext = None
         self.header_registry = JWSEHeaderRegistry(JWEHeaderRegistry)
         if header_registry:
@@ -164,7 +164,7 @@ class JWE(object):
         return h1
 
     def _get_jose_header(self, header=None):
-        jh = dict()
+        jh = {}
         if 'protected' in self.objects:
             ph = json_decode(self.objects['protected'])
             jh = self._merge_headers(jh, ph)
@@ -229,7 +229,7 @@ class JWE(object):
         jh = self._get_jose_header(header)
         alg, enc = self._get_alg_enc_from_headers(jh)
 
-        rec = dict()
+        rec = {}
         if header:
             rec['header'] = header
 
@@ -250,8 +250,8 @@ class JWE(object):
         if 'recipients' in self.objects:
             self.objects['recipients'].append(rec)
         elif 'encrypted_key' in self.objects or 'header' in self.objects:
-            self.objects['recipients'] = list()
-            n = dict()
+            self.objects['recipients'] = []
+            n = {}
             if 'encrypted_key' in self.objects:
                 n['encrypted_key'] = self.objects.pop('encrypted_key')
             if 'header' in self.objects:
@@ -267,7 +267,7 @@ class JWE(object):
         :param compact(boolean): if True generates the compact
          representation, otherwise generates a standard JSON format.
 
-        :raises InvalidJWEOperation: if the object cannot serialized
+        :raises InvalidJWEOperation: if the object cannot be serialized
          with the compact representation and `compact` is True.
         :raises InvalidJWEOperation: if no recipients have been added
          to the object.
@@ -300,7 +300,7 @@ class JWE(object):
                 rec = self.objects
             if 'header' in rec:
                 # The AESGCMKW algorithm generates data (iv, tag) we put in the
-                # per-recipient unpotected header by default. Move it to the
+                # per-recipient unprotected header by default. Move it to the
                 # protected header and re-encrypt the payload, as the protected
                 # header is used as additional authenticated data.
                 h = json_decode(rec['header'])
@@ -329,9 +329,9 @@ class JWE(object):
             if 'aad' in obj:
                 enc['aad'] = base64url_encode(obj['aad'])
             if 'recipients' in obj:
-                enc['recipients'] = list()
+                enc['recipients'] = []
                 for rec in obj['recipients']:
-                    e = dict()
+                    e = {}
                     if 'encrypted_key' in rec:
                         e['encrypted_key'] = \
                             base64url_encode(rec['encrypted_key'])
@@ -361,7 +361,7 @@ class JWE(object):
         jh = self._get_jose_header(ppe.get('header', None))
 
         # TODO: allow caller to specify list of headers it understands
-        self._check_crit(jh.get('crit', dict()))
+        self._check_crit(jh.get('crit', {}))
 
         for hdr in jh:
             if hdr in self.header_registry:
@@ -407,7 +407,7 @@ class JWE(object):
 
         if 'ciphertext' not in self.objects:
             raise InvalidJWEOperation("No available ciphertext")
-        self.decryptlog = list()
+        self.decryptlog = []
 
         if 'recipients' in self.objects:
             for rec in self.objects['recipients']:
@@ -442,11 +442,11 @@ class JWE(object):
         :raises InvalidJWEOperation: if the decryption fails.
         """
 
-        self.objects = dict()
+        self.objects = {}
         self.plaintext = None
         self.cek = None
 
-        o = dict()
+        o = {}
         try:
             try:
                 djwe = json_decode(raw_jwe)
@@ -461,9 +461,9 @@ class JWE(object):
                 if 'aad' in djwe:
                     o['aad'] = base64url_decode(djwe['aad'])
                 if 'recipients' in djwe:
-                    o['recipients'] = list()
+                    o['recipients'] = []
                     for rec in djwe['recipients']:
-                        e = dict()
+                        e = {}
                         if 'encrypted_key' in rec:
                             e['encrypted_key'] = \
                                 base64url_decode(rec['encrypted_key'])
@@ -477,10 +477,10 @@ class JWE(object):
                     if 'header' in djwe:
                         o['header'] = json_encode(djwe['header'])
 
-            except ValueError:
+            except ValueError as e:
                 c = raw_jwe.split('.')
                 if len(c) != 5:
-                    raise InvalidJWEData()
+                    raise InvalidJWEData() from e
                 p = base64url_decode(c[0])
                 o['protected'] = p.decode('utf-8')
                 ekey = base64url_decode(c[1])
@@ -493,7 +493,7 @@ class JWE(object):
             self.objects = o
 
         except Exception as e:  # pylint: disable=broad-except
-            raise InvalidJWEData('Invalid format', repr(e))
+            raise InvalidJWEData('Invalid format', repr(e)) from e
 
         if key:
             self.decrypt(key)

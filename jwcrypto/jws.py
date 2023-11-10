@@ -30,7 +30,7 @@ default_allowed_algs = [
     'RS256', 'RS384', 'RS512',
     'ES256', 'ES384', 'ES512',
     'PS256', 'PS384', 'PS512',
-    'EdDSA']
+    'EdDSA', 'ES256K']
 """Default allowed algorithms"""
 
 
@@ -85,7 +85,7 @@ class InvalidJWSOperation(JWException):
         super(InvalidJWSOperation, self).__init__(msg)
 
 
-class JWSCore(object):
+class JWSCore:
     """The inner JWS Core object.
 
     This object SHOULD NOT be used directly, the JWS object should be
@@ -108,6 +108,7 @@ class JWSCore(object):
         :raises ValueError: if the key is not a :class:`JWK` object
         :raises InvalidJWAAlgorithm: if the algorithm is not valid, is
             unknown or otherwise not yet implemented.
+        :raises InvalidJWSOperation: if the algorithm is not allowed.
         """
         self.alg = alg
         self.engine = self._jwa(alg, algs)
@@ -124,7 +125,7 @@ class JWSCore(object):
 
             self.protected = base64url_encode(header.encode('utf-8'))
         else:
-            self.header = dict()
+            self.header = {}
             self.protected = ''
         self.payload = payload
 
@@ -163,11 +164,11 @@ class JWSCore(object):
             sigin = b'.'.join([self.protected.encode('utf-8'), payload])
             self.engine.verify(self.key, sigin, signature)
         except Exception as e:  # pylint: disable=broad-except
-            raise InvalidJWSSignature('Verification failed', repr(e))
+            raise InvalidJWSSignature('Verification failed') from e
         return True
 
 
-class JWS(object):
+class JWS:
     """JSON Web Signature object
 
     This object represent a JWS token.
@@ -179,9 +180,8 @@ class JWS(object):
         :param payload(bytes): An arbitrary value (optional).
         :param header_registry: Optional additions to the header registry
         """
-        self.objects = dict()
-        if payload:
-            self.objects['payload'] = payload
+        self.objects = {}
+        self.objects['payload'] = payload
         self.verifylog = None
         self._allowed_algs = None
         self.header_registry = JWSEHeaderRegistry(JWSHeaderRegistry)
@@ -237,7 +237,7 @@ class JWS(object):
             if hn is None:
                 continue
             if header is None:
-                header = dict()
+                header = {}
             for h in list(hn.keys()):
                 if h in self.header_registry:
                     if self.header_registry[h].mustprotect:
@@ -254,7 +254,7 @@ class JWS(object):
 
     # TODO: support selecting key with 'kid' and passing in multiple keys
     def _verify(self, alg, key, payload, signature, protected, header=None):
-        p = dict()
+        p = {}
         # verify it is a valid JSON object and decode
         if protected is not None:
             p = json_decode(protected)
@@ -293,13 +293,13 @@ class JWS(object):
         """Verifies a JWS token.
 
         :param key: The (:class:`jwcrypto.jwk.JWK`) verification key.
-        :param alg: The signing algorithm (optional). usually the algorithm
+        :param alg: The signing algorithm (optional). Usually the algorithm
             is known as it is provided with the JOSE Headers of the token.
 
         :raises InvalidJWSSignature: if the verification fails.
         """
 
-        self.verifylog = list()
+        self.verifylog = []
         self.objects['valid'] = False
         obj = self.objects
         if 'signature' in obj:
@@ -333,8 +333,7 @@ class JWS(object):
                                       'signatures' + repr(self.verifylog))
 
     def _deserialize_signature(self, s):
-        o = dict()
-        o['signature'] = base64url_decode(str(s['signature']))
+        o = {'signature': base64url_decode(str(s['signature']))}
         if 'protected' in s:
             p = base64url_decode(str(s['protected']))
             o['protected'] = p.decode('utf-8')
@@ -370,19 +369,19 @@ class JWS(object):
         :param key: A (:class:`jwcrypto.jwk.JWK`) verification key (optional).
          If a key is provided a verification step will be attempted after
          the object is successfully deserialized.
-        :param alg: The signing algorithm (optional). usually the algorithm
+        :param alg: The signing algorithm (optional). Usually the algorithm
          is known as it is provided with the JOSE Headers of the token.
 
         :raises InvalidJWSObject: if the raw object is an invalid JWS token.
         :raises InvalidJWSSignature: if the verification fails.
         """
-        self.objects = dict()
-        o = dict()
+        self.objects = {}
+        o = {}
         try:
             try:
                 djws = json_decode(raw_jws)
                 if 'signatures' in djws:
-                    o['signatures'] = list()
+                    o['signatures'] = []
                     for s in djws['signatures']:
                         os = self._deserialize_signature(s)
                         o['signatures'].append(os)
@@ -400,7 +399,8 @@ class JWS(object):
             except ValueError:
                 c = raw_jws.split('.')
                 if len(c) != 3:
-                    raise InvalidJWSObject('Unrecognized representation')
+                    raise InvalidJWSObject('Unrecognized'
+                                           ' representation') from None
                 p = base64url_decode(str(c[0]))
                 if len(p) > 0:
                     o['protected'] = p.decode('utf-8')
@@ -411,7 +411,7 @@ class JWS(object):
             self.objects = o
 
         except Exception as e:  # pylint: disable=broad-except
-            raise InvalidJWSObject('Invalid format', repr(e))
+            raise InvalidJWSObject('Invalid format') from e
 
         if key:
             self.verify(key, alg)
@@ -427,8 +427,7 @@ class JWS(object):
         :param protected: The Protected Header (optional)
         :param header: The Unprotected Header (optional)
 
-        :raises InvalidJWSObject: if no payload has been set on the object,
-                                  or invalid headers are provided.
+        :raises InvalidJWSObject: if invalid headers are provided.
         :raises ValueError: if the key is not a :class:`JWK` object.
         :raises ValueError: if the algorithm is missing or is not provided
          by one of the headers.
@@ -436,12 +435,9 @@ class JWS(object):
          unknown or otherwise not yet implemented.
         """
 
-        if not self.objects.get('payload', None):
-            raise InvalidJWSObject('Missing Payload')
-
         b64 = True
 
-        p = dict()
+        p = {}
         if protected:
             if isinstance(protected, dict):
                 p = protected
@@ -481,24 +477,25 @@ class JWS(object):
             raise ValueError('"alg" not specified')
 
         c = JWSCore(
-            alg, key, protected, self.objects['payload'], self.allowed_algs
+            alg, key, protected, self.objects.get('payload'),
+            self.allowed_algs
         )
         sig = c.sign()
 
-        o = dict()
-        o['signature'] = base64url_decode(sig['signature'])
+        o = {
+            'signature': base64url_decode(sig['signature']),
+            'valid': True,
+        }
         if protected:
             o['protected'] = protected
         if header:
             o['header'] = h
-        o['valid'] = True
 
         if 'signatures' in self.objects:
             self.objects['signatures'].append(o)
         elif 'signature' in self.objects:
-            self.objects['signatures'] = list()
-            n = dict()
-            n['signature'] = self.objects.pop('signature')
+            self.objects['signatures'] = []
+            n = {'signature': self.objects.pop('signature')}
             if 'protected' in self.objects:
                 n['protected'] = self.objects.pop('protected')
             if 'header' in self.objects:
@@ -531,10 +528,15 @@ class JWS(object):
             if not self.objects.get('valid', False):
                 raise InvalidJWSSignature("No valid signature found")
             if 'protected' in self.objects:
+                p = json_decode(self.objects['protected'])
+                if 'alg' not in p:
+                    raise InvalidJWSOperation("Compact encoding must carry "
+                                              "'alg' in protected header")
                 protected = base64url_encode(self.objects['protected'])
             else:
-                protected = ''
-            if self.objects.get('payload', False):
+                raise InvalidJWSOperation("Can't use compact encoding "
+                                          "without protected header")
+            if self.objects.get('payload'):
                 if self.objects.get('b64', True):
                     payload = base64url_encode(self.objects['payload'])
                 else:
@@ -552,12 +554,12 @@ class JWS(object):
                              base64url_encode(self.objects['signature'])])
         else:
             obj = self.objects
-            sig = dict()
-            if self.objects.get('payload', False):
-                if self.objects.get('b64', True):
-                    sig['payload'] = base64url_encode(self.objects['payload'])
-                else:
-                    sig['payload'] = self.objects['payload']
+            sig = {}
+            payload = self.objects.get('payload', '')
+            if self.objects.get('b64', True):
+                sig['payload'] = base64url_encode(payload)
+            else:
+                sig['payload'] = payload
             if 'signature' in obj:
                 if not obj.get('valid', False):
                     raise InvalidJWSSignature("No valid signature found")
@@ -567,7 +569,7 @@ class JWS(object):
                 if 'header' in obj:
                     sig['header'] = obj['header']
             elif 'signatures' in obj:
-                sig['signatures'] = list()
+                sig['signatures'] = []
                 for o in obj['signatures']:
                     if not o.get('valid', False):
                         continue
@@ -585,11 +587,9 @@ class JWS(object):
 
     @property
     def payload(self):
-        if 'payload' not in self.objects:
-            raise InvalidJWSOperation("Payload not available")
         if not self.is_valid:
             raise InvalidJWSOperation("Payload not verified")
-        return self.objects['payload']
+        return self.objects.get('payload')
 
     def detach_payload(self):
         self.objects.pop('payload', None)
@@ -602,16 +602,16 @@ class JWS(object):
                 p = json_decode(obj['protected'])
             else:
                 p = None
-            return self._merge_check_headers(p, obj.get('header', dict()))
+            return self._merge_check_headers(p, obj.get('header', {}))
         elif 'signatures' in self.objects:
-            jhl = list()
+            jhl = []
             for o in obj['signatures']:
-                jh = dict()
+                jh = {}
                 if 'protected' in o:
                     p = json_decode(o['protected'])
                 else:
                     p = None
-                jh = self._merge_check_headers(p, o.get('header', dict()))
+                jh = self._merge_check_headers(p, o.get('header', {}))
                 jhl.append(jh)
             return jhl
         else:
