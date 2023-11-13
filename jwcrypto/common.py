@@ -4,10 +4,7 @@ import copy
 import json
 from base64 import urlsafe_b64decode, urlsafe_b64encode
 from collections import namedtuple
-try:
-    from collections.abc import MutableMapping
-except ImportError:
-    from collections import MutableMapping
+from collections.abc import MutableMapping
 
 # Padding stripping versions as described in
 # RFC 7515 Appendix C
@@ -114,7 +111,7 @@ class InvalidJWEKeyLength(JWException):
 class InvalidJWSERegOperation(JWException):
     """Invalid JWSE Header Registry Operation.
 
-    This exception is raised when there is an error in trying ot add a JW
+    This exception is raised when there is an error in trying to add a JW
     Signature or Encryption header to the Registry.
     """
 
