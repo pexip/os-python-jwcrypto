@@ -33,3 +33,16 @@ Index: os-python-jwcrypto/jwcrypto/jwk.py
      def key_curve(self):
          """The Curve Name."""
          if self.get('kty') not in ['EC', 'OKP']:
+Index: os-python-jwcrypto/setup.py
+===================================================================
+--- os-python-jwcrypto.orig/setup.py
++++ os-python-jwcrypto/setup.py
+@@ -26,7 +26,7 @@ setup(
+     data_files = [('share/doc/jwcrypto', ['LICENSE', 'README.md'])],
+     install_requires = [
+         'cryptography >= 2.3',
+-        'deprecated',
++#        'deprecated',
+     ],
+     python_requires = '>= 3.6',
+ )
