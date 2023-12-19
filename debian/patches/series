@@ -1,1 +1,2 @@
 disable-tests-openssl102.patch
+pexip/no_deprecated.diff

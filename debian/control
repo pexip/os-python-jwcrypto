@@ -9,7 +9,6 @@ Build-Depends:
  dh-python,
  python3-all,
  python3-cryptography,
- python3-deprecated,
  python3-nose,
  python3-setuptools,
 Standards-Version: 4.5.1
@@ -22,7 +21,6 @@ Package: python3-jwcrypto
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends},
  python3-cryptography,
- python3-deprecated,
 Description: Python3 implementation of JOSE Web standards
  This python module implements JWK,JWS,JWE specifications using
  python-cryptography.
