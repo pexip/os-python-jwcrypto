@@ -1,3 +1,9 @@
+python-jwcrypto (1.1.0-1+pexip24u5) pexip-bookworm; urgency=medium
+
+  * New versioning scheme
+
+ -- Mark Hymers <mark.hymers@pexip.com>  Thu, 01 Feb 2024 16:22:58 +0000
+
 python-jwcrypto (1.1.0-1pexip4) pexip-bookworm; urgency=medium
 
   * Remove deprecated from setup to avoid dependency.
