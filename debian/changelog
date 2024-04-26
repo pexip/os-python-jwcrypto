@@ -1,3 +1,10 @@
+python-jwcrypto (1.1.0-1+deb12u1) bookworm; urgency=medium
+
+  * Apply and tweak upstream security fix for CVE-2024-28102
+    Address potential DoS with high compression ratio
+
+ -- Steve McIntyre <93sam@debian.org>  Fri, 26 Apr 2024 17:18:31 +0100
+
 python-jwcrypto (1.1.0-1) unstable; urgency=medium
 
   * New upstream release.
