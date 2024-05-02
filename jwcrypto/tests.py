@@ -15,12 +15,12 @@ from jwcrypto import jwk
 from jwcrypto import jws
 from jwcrypto import jwt
 from jwcrypto.common import InvalidJWSERegOperation
+from jwcrypto.common import JWKeyNotFound
 from jwcrypto.common import JWSEHeaderParameter
 from jwcrypto.common import base64url_decode, base64url_encode
 from jwcrypto.common import json_decode, json_encode
 
 jwe_algs_and_rsa1_5 = jwe.default_allowed_algs + ['RSA1_5']
-jws_algs_and_rsa1_5 = jws.default_allowed_algs + ['RSA1_5']
 
 # RFC 7517 - A.1
 PublicKeys = {"keys": [
@@ -269,7 +269,13 @@ PublicKeys_secp256k1 = {
             "crv": "secp256k1",
             "x": "Ss6na3mcci8Ud4lQrjaB_T40sfKApEcl2RLIWOJdjow",
             "y": "7l9qIKtKPW6oEiOYBt7r22Sm0mtFJU-yBkkvMvpscd8"
-        }
+        },
+        {
+            "kty": "EC",
+            "crv": "P-256K",
+            "x": "Ss6na3mcci8Ud4lQrjaB_T40sfKApEcl2RLIWOJdjow",
+            "y": "7l9qIKtKPW6oEiOYBt7r22Sm0mtFJU-yBkkvMvpscd8"
+        },
     ]
 }
 
@@ -282,6 +288,72 @@ PrivateKeys_secp256k1 = {
             "y": "7l9qIKtKPW6oEiOYBt7r22Sm0mtFJU-yBkkvMvpscd8",
             "d": "GYhU2vrYGZrjLZn71Xniqm54Mi53xiYtaTLawzaf9dA"
         },
+        {
+            "kty": "EC",
+            "crv": "P-256K",
+            "x": "Ss6na3mcci8Ud4lQrjaB_T40sfKApEcl2RLIWOJdjow",
+            "y": "7l9qIKtKPW6oEiOYBt7r22Sm0mtFJU-yBkkvMvpscd8",
+            "d": "GYhU2vrYGZrjLZn71Xniqm54Mi53xiYtaTLawzaf9dA"
+        }
+    ]
+}
+
+PublicKeys_brainpool = {
+    "keys": [
+        {
+            "kty": "EC",
+            "crv": "BP-256",
+            "x": "mpkJ29_CYAD0mzQ_MsrbjFMFYtcc9Oxpro37Fa4cLfI",
+            "y": "iBfhNHk0cI73agNpjbKW62dvuVxn7kxp1Sm8oDnzHl8",
+        },
+        {
+            "kty": "EC",
+            "crv": "BP-384",
+            "x": ("WZanneaC2Hi3xslA4znJv7otyEdV5dTPzNUvBjBXPM"
+                  "ytf4mRY9JaAITdItjvUTAh"),
+            "y": ("KNLRTNdvUg66aB_TVW4POZkE3q8S0YoQrCzYUrExRDe"
+                  "_BXikkqIama-GYQ3UBOQL"),
+        },
+        {
+            "kty": "EC",
+            "crv": "BP-512",
+            "x": ("aQXpvz7DH9OK5eFNO9dY3BdPY1v0-8Rg9KC322PY1Jy"
+                  "BJq3EhT0uR_-tgbL2E_aGP6k56lF1xIOOtQxo8zziGA"),
+            "y": ("l9XLHHncigOPr5Tvnj_mVzBFv6i7rdBQrLTq3RXZlCC"
+                  "_f_q6L2o79K9IrN_J2wWxAfS8ekuGPGlHZUzK-3D9sA"),
+        }
+    ]
+}
+
+PrivateKeys_brainpool = {
+    "keys": [
+        {
+            "kty": "EC",
+            "crv": "BP-256",
+            "x": "mpkJ29_CYAD0mzQ_MsrbjFMFYtcc9Oxpro37Fa4cLfI",
+            "y": "iBfhNHk0cI73agNpjbKW62dvuVxn7kxp1Sm8oDnzHl8",
+            "d": "KdKRgq0WEM97BQw3jpW_fTOep6fn-Samv4DfDNb-4s4"
+        },
+        {
+            "kty": "EC",
+            "crv": "BP-384",
+            "x": ("WZanneaC2Hi3xslA4znJv7otyEdV5dTPzNUvBjBXPM"
+                  "ytf4mRY9JaAITdItjvUTAh"),
+            "y": ("KNLRTNdvUg66aB_TVW4POZkE3q8S0YoQrCzYUrExRDe"
+                  "_BXikkqIama-GYQ3UBOQL"),
+            "d": ("B5WeRV0-RztAPAhRbphSAUrsIzy-eSfWGSM5FxOQGlJ"
+                  "cq-ECLA_-SIlH7NdWIEJY")
+        },
+        {
+            "kty": "EC",
+            "crv": "BP-512",
+            "x": ("aQXpvz7DH9OK5eFNO9dY3BdPY1v0-8Rg9KC322PY1Jy"
+                  "BJq3EhT0uR_-tgbL2E_aGP6k56lF1xIOOtQxo8zziGA"),
+            "y": ("l9XLHHncigOPr5Tvnj_mVzBFv6i7rdBQrLTq3RXZlCC"
+                  "_f_q6L2o79K9IrN_J2wWxAfS8ekuGPGlHZUzK-3D9sA"),
+            "d": ("F_LJ9rebAjOtxoMUfngIywYsnJlZNjy3gxNAEvHjSkL"
+                  "m6RUUdLXDwc50EMp0LeTh1ku039D5kldK3S9Xi0yKZA")
+        }
     ]
 }
 
@@ -292,6 +364,16 @@ MC4CAQAwBQYDK2VwBCIEIEh4ImJiiZgSNg9J9I+Z5toHKh6LDO2MCbSYNZTkMXDU
 
 Ed25519PublicPEM = b"""-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAlsRcb1mVVIUcDjNqZU27N+iPXihH1EQDa/O3utHLtqc=
+-----END PUBLIC KEY-----
+"""
+
+X25519PrivatePEM = b"""-----BEGIN PRIVATE KEY-----
+MC4CAQAwBQYDK2VuBCIEIBjAbPTtNY6CUuR5FG1+xb1u5nSRokrNaQYEsgu9O+hP
+-----END PRIVATE KEY-----
+"""
+
+X25519PublicPEM = b"""-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VuAyEAW+m9ugi1psQFx6dtTl6J/XZ4JFP019S+oq4wyAoWPnQ=
 -----END PUBLIC KEY-----
 """
 
@@ -307,6 +389,13 @@ ECPublicJWK = {
     "kty": "EC",
     "x": "hvGzt82WMJxqTuXCZxnvwrx4enQj6xc-erlhbTq8gTM",
     "y": "ACQczUT26bo-DTsEwsI6Ia7WNEwJLYcE7osbqI6Rips"
+}
+
+X25519PublicJWK = {
+    'crv': 'X25519',
+    'kid': '9cgLEZD5VsaV9dUPNehs2pOwxtmH-EWHJY-pC74Wjak',
+    'kty': 'OKP',
+    'x': 'W-m9ugi1psQFx6dtTl6J_XZ4JFP019S-oq4wyAoWPnQ'
 }
 
 
@@ -359,24 +448,42 @@ class TestJWK(unittest.TestCase):
         e.deserialize(enc, key)
         self.assertEqual(e.payload.decode('utf-8'), 'test')
 
+        # also test key generation with input_keysize != keysize
+        key = jwk.JWK.generate(kty='oct', alg="A128CBC-HS256")
+        self.assertEqual(len(base64url_decode(key['k'])), 32)
+        e = jwe.JWE('test', '{"alg":"A256KW","enc":"A128CBC-HS256"}')
+        e.add_recipient(key)
+        enc = e.serialize()
+        e.deserialize(enc, key)
+        self.assertEqual(e.payload.decode('utf-8'), 'test')
+
     def test_generate_EC_key(self):
         # Backwards compat curve
         key = jwk.JWK.generate(kty='EC', curve='P-256')
-        key.get_curve('P-256')
+        key.get_op_key('verify', 'P-256')
         # New param
         key = jwk.JWK.generate(kty='EC', crv='P-521')
-        key.get_curve('P-521')
+        key.get_op_key('verify', 'P-521')
         # New param prevails
         key = jwk.JWK.generate(kty='EC', curve='P-256', crv='P-521')
-        key.get_curve('P-521')
+        key.get_op_key('verify', 'P-521')
         # New secp256k curve
         key = jwk.JWK.generate(kty='EC', curve='secp256k1')
-        key.get_curve('secp256k1')
+        key.get_op_key('verify', 'secp256k1')
+        # Brainpool256R1 curve
+        key = jwk.JWK.generate(kty='EC', crv='BP-256')
+        key.get_op_key('verify', 'BP-256')
+        # Brainpool384R1 curve
+        key = jwk.JWK.generate(kty='EC', crv='BP-384')
+        key.get_op_key('verify', 'BP-384')
+        # Brainpool256R1 curve
+        key = jwk.JWK.generate(kty='EC', crv='BP-512')
+        key.get_op_key('verify', 'BP-512')
 
     def test_generate_OKP_keys(self):
         for crv in jwk.ImplementedOkpCurves:
             key = jwk.JWK.generate(kty='OKP', crv=crv)
-            self.assertEqual(key.get_curve(crv), crv)
+            self.assertEqual(key['crv'], crv)
 
     def test_import_pyca_keys(self):
         rsa1 = rsa.generate_private_key(65537, 1024, default_backend())
@@ -415,7 +522,7 @@ class TestJWK(unittest.TestCase):
         ks3 = jwk.JWKSet.from_json(ks.export())
         self.assertEqual(len(ks), len(ks3))
 
-        # Test key set with mutiple keys
+        # Test key set with multiple keys
         ksm = jwk.JWKSet.from_json(json_encode(PrivateKeys))
         num = 0
         for item in ksm:
@@ -423,6 +530,24 @@ class TestJWK(unittest.TestCase):
             self.assertTrue(item in ksm)
             num += 1
         self.assertEqual(num, len(PrivateKeys['keys']))
+
+    def test_jwkset_get_keys(self):
+        # Test key set with multiple keys
+        ksm = jwk.JWKSet.from_json(json_encode(PrivateKeys))
+        k1 = jwk.JWK.from_json(json_encode(PrivateKeys['keys'][0]))
+        kwargs = RSAPrivateKey.copy()
+        kwargs['kid'] = '1'
+        k2 = jwk.JWK(**kwargs)
+        self.assertEqual(k1, ksm.get_key('1'))
+        self.assertIsNone(ksm.get_key('not-there'))
+
+        ksm.add(k2)
+        self.assertEqual({k1, k2}, ksm.get_keys('1'))
+        self.assertEqual(3, len(ksm['keys']))
+        # Expect that duplicate kids will
+        # raise an exception when we use get_key
+        with self.assertRaises(jwk.InvalidJWKValue):
+            ksm.get_key('1')
 
     def test_jwkset_issue_208(self):
         ks = jwk.JWKSet()
@@ -461,6 +586,11 @@ class TestJWK(unittest.TestCase):
         pub_ec = jwk.JWK.from_pem(ECPublicPEM)
         self.assertEqual(pub_ec.export_to_pem(), ECPublicPEM)
         self.assertEqual(json_decode(pub_ec.export()), ECPublicJWK)
+
+    def test_import_x25519_from_pem(self):
+        pub_x25519 = jwk.JWK.from_pem(X25519PublicPEM)
+        self.assertEqual(pub_x25519.export_to_pem(), X25519PublicPEM)
+        self.assertEqual(json_decode(pub_x25519.export()), X25519PublicJWK)
 
     def test_export_symmetric(self):
         key = jwk.JWK(**SymmetricKeys['keys'][0])
@@ -545,6 +675,16 @@ class TestJWK(unittest.TestCase):
         for key in keylist:
             jwk.JWK(**key)
 
+    def test_create_pubKeys_brainpool(self):
+        keylist = PublicKeys_brainpool['keys']
+        for key in keylist:
+            jwk.JWK(**key)
+
+    def test_create_priKeys_brainpool(self):
+        keylist = PrivateKeys_brainpool['keys']
+        for key in keylist:
+            jwk.JWK(**key)
+
     def test_thumbprint_eddsa(self):
         for i in range(0, len(PublicKeys_EdDsa['keys'])):
             k = jwk.JWK(**PublicKeys_EdDsa['keys'][i])
@@ -563,10 +703,10 @@ class TestJWK(unittest.TestCase):
         pubkey = jwk.JWK.from_pem(Ed25519PublicPEM)
         self.assertTrue(pubkey.has_public)
         self.assertFalse(pubkey.has_private)
-        c = jws.JWS()
-        c.deserialize(sig, pubkey, alg="EdDSA")
-        self.assertTrue(c.objects['valid'])
-        self.assertEqual(c.payload, payload)
+        jws_token = jws.JWS()
+        jws_token.deserialize(sig, pubkey, alg="EdDSA")
+        self.assertTrue(jws_token.objects['valid'])
+        self.assertEqual(jws_token.payload, payload)
 
     def test_jwk_as_dict(self):
         key = jwk.JWK(**PublicKeys['keys'][0])
@@ -594,6 +734,28 @@ class TestJWK(unittest.TestCase):
         key = jwk.JWK.from_password('test password')
         self.assertEqual(key['kty'], 'oct')
         self.assertEqual(key['k'], 'dGVzdCBwYXNzd29yZA')
+
+    def test_p256k_alias(self):
+        key = jwk.JWK.generate(kty='EC', curve='P-256K')
+        key.get_op_key('verify', 'secp256k1')
+
+        pub_k = jwk.JWK(**PrivateKeys_secp256k1['keys'][0])
+        pri_k = jwk.JWK(**PrivateKeys_secp256k1['keys'][1])
+        payload = bytes(bytearray(A1_payload))
+        test = jws.JWS(payload)
+        test.add_signature(pri_k, None, json_encode({"alg": "ES256K"}), None)
+        test_serialization_compact = test.serialize(compact=True)
+        verify = jws.JWS()
+        verify.deserialize(test_serialization_compact)
+        verify.verify(pub_k.public())
+        self.assertEqual(verify.payload, payload)
+
+    def test_thumbprint_uri(self):
+        k = jwk.JWK(**PublicKeys['keys'][1])
+        self.assertEqual(
+            k.thumbprint_uri(),
+            "urn:ietf:params:oauth:jwk-thumbprint:sha-256:{}".format(
+                PublicKeys['thumbprints'][1]))
 
 
 # RFC 7515 - A.1
@@ -828,7 +990,7 @@ class TestJWS(unittest.TestCase):
             self.assertEqual(decsig, test['signature'])
         else:
             # Check we can verify the test signature independently
-            # this is so taht we can test the ECDSA agaist a known
+            # this is so that we can test the ECDSA against a known
             # good signature
             s.verify(test['signature'])
 
@@ -873,7 +1035,7 @@ class TestJWS(unittest.TestCase):
     def test_E(self):
         s = jws.JWS(A6_example['payload'])
         with self.assertRaises(jws.InvalidJWSSignature):
-            jws.InvalidJWSSignature(s.deserialize, E_negative)
+            s.deserialize(E_negative)
             s.verify(None)
 
     def test_customhdr_jws(self):
@@ -934,6 +1096,31 @@ class TestJWS(unittest.TestCase):
         jws_verify.verify(key.public())
         self.assertEqual(jws_verify.payload, payload)
 
+    def test_brainpool_signing_and_verification(self):
+        for key_data in PrivateKeys_brainpool['keys']:
+            key = jwk.JWK(**key_data)
+            payload = bytes(bytearray(A1_payload))
+            jws_test = jws.JWS(payload)
+
+            curve_name = key.get('crv')
+            if curve_name == "BP-256":
+                alg = "BP256R1"
+            elif curve_name == "BP-384":
+                alg = "BP384R1"
+            else:
+                alg = "BP512R1"
+
+            jws_test.allowed_algs = [alg]
+            jws_test.add_signature(key, None, json_encode({"alg": alg}), None)
+            jws_test_serialization_compact = jws_test.serialize(compact=True)
+
+            jws_verify = jws.JWS()
+            jws_verify.allowed_algs = [alg]
+            jws_verify.deserialize(jws_test_serialization_compact)
+            jws_verify.verify(key.public())
+
+            self.assertEqual(jws_verify.payload, payload)
+
     def test_jws_issue_224(self):
         key = jwk.JWK().generate(kty='oct')
 
@@ -948,6 +1135,37 @@ class TestJWS(unittest.TestCase):
         t = jws.JWS()
         t.deserialize(o1)
         t.verify(key)
+
+    def test_jws_issue_281(self):
+        header = {"alg": "HS256"}
+        header_copy = copy.deepcopy(header)
+
+        key = jwk.JWK().generate(kty='oct')
+
+        s = jws.JWS(payload='test')
+        s.add_signature(key, protected=header,
+                        header={"kid": key.thumbprint()})
+
+        self.assertEqual(header, header_copy)
+
+    def test_decrypt_keyset(self):
+        ks = jwk.JWKSet()
+        key1 = jwk.JWK.generate(kty='oct', alg='HS256', kid='key1')
+        key2 = jwk.JWK.generate(kty='oct', alg='HS384', kid='key2')
+        key3 = jwk.JWK.generate(kty='oct', alg='HS512', kid='key3')
+        ks.add(key1)
+        ks.add(key2)
+        s1 = jws.JWS(payload=b'secret')
+        s1.add_signature(key1, protected='{"alg":"HS256"}')
+        s2 = jws.JWS()
+        s2.deserialize(s1.serialize(), ks)
+        self.assertEqual(s2.payload, b'secret')
+
+        s3 = jws.JWS(payload=b'secret')
+        s3.add_signature(key3, protected='{"alg":"HS256"}')
+        s4 = jws.JWS()
+        with self.assertRaises(JWKeyNotFound):
+            s4.deserialize(s3.serialize(), ks)
 
 
 E_A1_plaintext = \
@@ -1272,6 +1490,25 @@ class TestJWE(unittest.TestCase):
             e2.deserialize(enc, x25519key)
             self.assertEqual(e2.payload, plaintext)
 
+    def test_decrypt_keyset(self):
+        ks = jwk.JWKSet()
+        key1 = jwk.JWK.generate(kty='oct', alg='A128KW', kid='key1')
+        key2 = jwk.JWK.generate(kty='oct', alg='A192KW', kid='key2')
+        key3 = jwk.JWK.generate(kty='oct', alg='A256KW', kid='key3')
+        ks.add(key1)
+        ks.add(key2)
+        e1 = jwe.JWE(plaintext=b'secret')
+        e1.add_recipient(key1, '{"alg":"A128KW","enc":"A128GCM"}')
+        e2 = jwe.JWE()
+        e2.deserialize(e1.serialize(), ks)
+        self.assertEqual(e2.payload, b'secret')
+
+        e3 = jwe.JWE(plaintext=b'secret')
+        e3.add_recipient(key3, '{"alg":"A256KW","enc":"A256GCM"}')
+        e4 = jwe.JWE()
+        with self.assertRaises(JWKeyNotFound):
+            e4.deserialize(e3.serialize(), ks)
+
 
 MMA_vector_key = jwk.JWK(**E_A2_key)
 MMA_vector_ok_cek =  \
@@ -1427,9 +1664,11 @@ class TestJWT(unittest.TestCase):
         tinner = jwt.JWT(jwt=touter.claims, key=sigkey, check_claims=False)
         self.assertEqual(A1_claims, json_decode(tinner.claims))
 
+        # Test Exception throwing when token is encrypted with
+        # algorithms not in the allowed set
         with self.assertRaises(jwe.InvalidJWEData):
             jwt.JWT(jwt=A2_token, key=E_A2_ex['key'],
-                    algs=jws_algs_and_rsa1_5)
+                    algs=['A192KW', 'A192CBC-HS384', 'RSA1_5'])
 
     def test_decrypt_keyset(self):
         key = jwk.JWK(kid='testkey', **E_A2_key)
@@ -1442,7 +1681,9 @@ class TestJWT(unittest.TestCase):
         t.make_encrypted_token(key)
         token = t.serialize()
         # try to decrypt without a matching key
-        self.assertRaises(jwt.JWTMissingKey, jwt.JWT, jwt=token, key=keyset)
+        self.assertRaises(jwt.JWTMissingKey, jwt.JWT, jwt=token, key=keyset,
+                          algs=jwe_algs_and_rsa1_5,
+                          check_claims={'exp': 1300819380})
         # now decrypt with key
         keyset.add(key)
         jwt.JWT(jwt=token, key=keyset, algs=jwe_algs_and_rsa1_5,
@@ -1454,7 +1695,8 @@ class TestJWT(unittest.TestCase):
         t = jwt.JWT(header, A1_claims, algs=jwe_algs_and_rsa1_5)
         t.make_encrypted_token(key)
         token = t.serialize()
-        self.assertRaises(jwe.InvalidJWEData, jwt.JWT, jwt=token, key=keyset)
+        self.assertRaises(jwt.JWTMissingKey, jwt.JWT, jwt=token, key=keyset,
+                          algs=jwe_algs_and_rsa1_5)
 
         keyset = jwk.JWKSet.from_json(json_encode(PrivateKeys))
         # encrypt a new JWT with no kid
@@ -1463,9 +1705,37 @@ class TestJWT(unittest.TestCase):
         t.make_encrypted_token(key)
         token = t.serialize()
         # try to decrypt without a matching key
-        self.assertRaises(jwt.JWTMissingKey, jwt.JWT, jwt=token, key=keyset)
+        self.assertRaises(jwt.JWTMissingKey, jwt.JWT, jwt=token, key=keyset,
+                          algs=jwe_algs_and_rsa1_5,
+                          check_claims={'exp': 1300819380})
         # now decrypt with key
         keyset.add(key)
+        jwt.JWT(jwt=token, key=keyset, algs=jwe_algs_and_rsa1_5,
+                check_claims={'exp': 1300819380})
+
+    def test_decrypt_keyset_dup_kid(self):
+        keyset = jwk.JWKSet.from_json(json_encode(PrivateKeys))
+        # add wrong key with duplicate kid
+        key = jwk.JWK(kid='testkey', **E_A3_key)
+        keyset.add(key)
+
+        # encrypt a new JWT with kid
+        key = jwk.JWK(kid='testkey', **E_A2_key)
+        header = copy.copy(A1_header)
+        header['kid'] = 'testkey'
+        t = jwt.JWT(header, A1_claims, algs=jwe_algs_and_rsa1_5)
+        t.make_encrypted_token(key)
+        token = t.serialize()
+
+        # try to decrypt without a matching key
+        with self.assertRaises(jwt.JWTMissingKey):
+            jwt.JWT(jwt=token, key=keyset, algs=jwe_algs_and_rsa1_5,
+                    check_claims={'exp': 1300819380})
+
+        # add right key
+        keyset.add(key)
+
+        # now decrypt with key
         jwt.JWT(jwt=token, key=keyset, algs=jwe_algs_and_rsa1_5,
                 check_claims={'exp': 1300819380})
 
@@ -1548,9 +1818,9 @@ class TestJWT(unittest.TestCase):
         t.make_signed_token(key)
         token = t.serialize()
 
-        c = jwt.JWT()
-        c.deserialize(token, key)
-        self.assertEqual('{}', c.claims)
+        _jwt = jwt.JWT()
+        _jwt.deserialize(token, key)
+        self.assertEqual('{}', _jwt.claims)
 
         # empty string is also valid
         t = jwt.JWT('{"alg":"HS256"}', '')
@@ -1563,9 +1833,9 @@ class TestJWT(unittest.TestCase):
         t.make_signed_token(key)
         token = t.serialize()
 
-        c = jwt.JWT()
-        c.deserialize(token, key)
-        self.assertEqual(' ', c.claims)
+        _jwt = jwt.JWT()
+        _jwt.deserialize(token, key)
+        self.assertEqual(' ', _jwt.claims)
 
     def test_Issue_209(self):
         key = jwk.JWK(**A3_key)
@@ -1581,14 +1851,109 @@ class TestJWT(unittest.TestCase):
         # the oct key before hitting the ES one
         jwt.JWT(jwt=token, key=ks)
 
-    def test_Issue_239(self):
-        claims = {"aud": "www.example.com"}
-        check_claims = {"aud": ["www.example.com", "account"]}
+    def test_Issue_277(self):
+        claims = {"aud": ["www.example.com", "www.test.net"]}
         key = jwk.JWK(generate='oct', size=256)
         token = jwt.JWT(header={"alg": "HS256"}, claims=claims)
         token.make_signed_token(key)
-        self.assertRaises(jwt.JWTInvalidClaimFormat, jwt.JWT, key=key,
-                          jwt=token.serialize(), check_claims=check_claims)
+        sertok = token.serialize()
+        jwt.JWT(key=key, jwt=sertok, check_claims={"aud": "www.example.com"})
+        jwt.JWT(key=key, jwt=sertok, check_claims={"aud": "www.test.net"})
+        jwt.JWT(key=key, jwt=sertok, check_claims={"aud": ["www.example.com"]})
+        jwt.JWT(key=key, jwt=sertok, check_claims={"aud": ["www.test.net"]})
+        jwt.JWT(key=key, jwt=sertok, check_claims={"aud": ["www.example.com",
+                                                           "www.test.net"]})
+        jwt.JWT(key=key, jwt=sertok, check_claims={"aud": ["www.example.com",
+                                                           "nomatch"]})
+        self.assertRaises(jwt.JWTInvalidClaimValue, jwt.JWT, key=key,
+                          jwt=sertok, check_claims={"aud": "nomatch"})
+        self.assertRaises(jwt.JWTInvalidClaimValue, jwt.JWT, key=key,
+                          jwt=sertok, check_claims={"aud": ["nomatch"]})
+        self.assertRaises(jwt.JWTInvalidClaimValue, jwt.JWT, key=key,
+                          jwt=sertok, check_claims={"aud": ["nomatch",
+                                                            "failmatch"]})
+
+    def test_unexpected(self):
+        key = jwk.JWK(generate='oct', size=256)
+        claims = {"testclaim": "test"}
+        token = jwt.JWT(header={"alg": "HS256"}, claims=claims)
+        token.make_signed_token(key)
+        sertok = token.serialize()
+
+        token.validate(key)
+        token.expected_type = "JWS"
+        token.validate(key)
+        token.expected_type = "JWE"
+        with self.assertRaises(TypeError):
+            token.validate(key)
+
+        jwt.JWT(jwt=sertok, key=key)
+        jwt.JWT(jwt=sertok, key=key, expected_type='JWS')
+        with self.assertRaises(TypeError):
+            jwt.JWT(jwt=sertok, key=key, expected_type='JWE')
+
+        jwt.JWT(jwt=sertok, algs=['HS256'], key=key)
+
+        key.use = 'sig'
+        jwt.JWT(jwt=sertok, key=key)
+        key.use = 'enc'
+        with self.assertRaises(TypeError):
+            jwt.JWT(jwt=sertok, key=key)
+        key.use = None
+        key.key_ops = 'verify'
+        jwt.JWT(jwt=sertok, key=key)
+        key.key_ops = ['sign', 'verify']
+        jwt.JWT(jwt=sertok, key=key)
+        key.key_ops = 'decrypt'
+        with self.assertRaises(TypeError):
+            jwt.JWT(jwt=sertok, key=key)
+        key.key_ops = ['encrypt', 'decrypt']
+        with self.assertRaises(TypeError):
+            jwt.JWT(jwt=sertok, key=key)
+        key.key_ops = None
+
+        token = jwt.JWT(header={"alg": "A256KW", "enc": "A256GCM"},
+                        claims=claims)
+        token.make_encrypted_token(key)
+        enctok = token.serialize()
+
+        # test workaround for older applications
+        jwt.JWT_expect_type = False
+        jwt.JWT(jwt=enctok, key=key)
+        jwt.JWT_expect_type = True
+
+        token.validate(key)
+        token.expected_type = "JWE"
+        token.validate(key)
+        token.expected_type = "JWS"
+        with self.assertRaises(TypeError):
+            token.validate(key)
+
+        jwt.JWT(jwt=enctok, key=key, expected_type='JWE')
+        with self.assertRaises(TypeError):
+            jwt.JWT(jwt=enctok, key=key)
+        with self.assertRaises(TypeError):
+            jwt.JWT(jwt=enctok, key=key, expected_type='JWS')
+
+        jwt.JWT(jwt=enctok, algs=['A256KW', 'A256GCM'], key=key)
+
+        key.use = 'enc'
+        jwt.JWT(jwt=enctok, key=key)
+        key.use = 'sig'
+        with self.assertRaises(TypeError):
+            jwt.JWT(jwt=enctok, key=key)
+        key.use = None
+        key.key_ops = 'verify'
+        with self.assertRaises(TypeError):
+            jwt.JWT(jwt=enctok, key=key)
+        key.key_ops = ['sign', 'verify']
+        with self.assertRaises(TypeError):
+            jwt.JWT(jwt=enctok, key=key)
+        key.key_ops = 'decrypt'
+        jwt.JWT(jwt=enctok, key=key)
+        key.key_ops = ['encrypt', 'decrypt']
+        jwt.JWT(jwt=enctok, key=key)
+        key.key_ops = None
 
 
 class ConformanceTests(unittest.TestCase):
@@ -1712,6 +2077,66 @@ class ConformanceTests(unittest.TestCase):
         check.decrypt(key)
         self.assertEqual(check.payload, b'plain')
 
+    def test_pbes2_hs256_aeskw_custom_params(self):
+        enc = jwe.JWE(plaintext='plain',
+                      protected={"alg": "PBES2-HS256+A128KW",
+                                 "enc": "A256CBC-HS512",
+                                 "p2c": 4096,
+                                 "p2s": base64url_encode("A" * 16)})
+        key = jwk.JWK.from_password('password')
+        enc.add_recipient(key)
+        o = enc.serialize()
+        check = jwe.JWE()
+        check.deserialize(o)
+        check.decrypt(key)
+        self.assertEqual(check.payload, b'plain')
+
+        enc = jwe.JWE(plaintext='plain',
+                      protected={"alg": "PBES2-HS256+A128KW",
+                                 "enc": "A256CBC-HS512",
+                                 "p2c": 4096,
+                                 "p2s": base64url_encode("A" * 7)})
+        key = jwk.JWK.from_password('password')
+        self.assertRaises(ValueError, enc.add_recipient, key)
+
+        # Test p2c iteration checks
+        maxiter = jwa.default_max_pbkdf2_iterations
+        p2cenc = jwe.JWE(plaintext='plain',
+                         protected={"alg": "PBES2-HS256+A128KW",
+                                    "enc": "A256CBC-HS512",
+                                    "p2c": maxiter + 1,
+                                    "p2s": base64url_encode("A" * 16)})
+        with self.assertRaisesRegex(ValueError, 'too large'):
+            p2cenc.add_recipient(key)
+        jwa.default_max_pbkdf2_iterations += 2
+        p2cenc.add_recipient(key)
+
+    def test_jwe_decompression_max(self):
+        key = jwk.JWK(kty='oct', k=base64url_encode(b'A' * (128 // 8)))
+        payload = '{"u": "' + "u" * 400000000 + '", "uu":"' \
+            + "u" * 400000000 + '"}'
+        protected_header = {
+            "alg": "A128KW",
+            "enc": "A128GCM",
+            "typ": "JWE",
+            "zip": "DEF",
+        }
+        enc = jwe.JWE(payload.encode('utf-8'),
+                      recipient=key,
+                      protected=protected_header).serialize(compact=True)
+        with self.assertRaises(jwe.InvalidJWEData):
+            check = jwe.JWE()
+            check.deserialize(enc)
+            check.decrypt(key)
+
+        defmax = jwe.default_max_compressed_size
+        jwe.default_max_compressed_size = 1000000000
+        # ensure we can eraise the limit and decrypt
+        check = jwe.JWE()
+        check.deserialize(enc)
+        check.decrypt(key)
+        jwe.default_max_compressed_size = defmax
+
 
 class JWATests(unittest.TestCase):
     def test_jwa_create(self):
@@ -1793,6 +2218,17 @@ class TestUnencodedPayload(unittest.TestCase):
         sig = s.serialize(compact=True)
         self.assertEqual(sig, result)
 
+    def test_detached_payload_verification(self):
+        token = \
+            'eyJhbGciOiJIUzI1NiIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il19..' + \
+            'A5dxf2s96_n5FLueVuW1Z_vh161FwXZC4YLPff6dmDY'
+
+        s = jws.JWS()
+        s.deserialize(token)
+        s.verify(jwk.JWK(**SymmetricKeys['keys'][1]),
+                 detached_payload=rfc7797_payload)
+        self.assertTrue(s.is_valid)
+
     def test_misses_crit(self):
         s = jws.JWS(rfc7797_payload)
         with self.assertRaises(jws.InvalidJWSObject):
@@ -1806,3 +2242,147 @@ class TestUnencodedPayload(unittest.TestCase):
         with self.assertRaises(jws.InvalidJWSObject):
             s.add_signature(jwk.JWK(**SymmetricKeys['keys'][1]),
                             protected=rfc7797_u_header)
+
+
+class TestOverloadedOperators(unittest.TestCase):
+
+    def test_jws_equality(self):
+        key = jwk.JWK.generate(kty='oct', size=256)
+        payload = "My Integrity protected message"
+        signer_a = jws.JWS(payload.encode('utf-8'))
+        signer_b = jws.JWS(payload.encode('utf-8'))
+        self.assertEqual(signer_a, signer_b)
+
+        signer_a.add_signature(key, None,
+                               json_encode({"alg": "HS256"}),
+                               json_encode({"kid": key.thumbprint()}))
+        # One is signed, the other is not
+        self.assertNotEqual(signer_a, signer_b)
+
+        signer_b.add_signature(key, None,
+                               json_encode({"alg": "HS256"}),
+                               json_encode({"kid": key.thumbprint()}))
+        # This kind of signature is deterministic so they should be equal
+        self.assertEqual(signer_a, signer_b)
+
+        signer_c = jws.JWS.from_jose_token(signer_a.serialize())
+        self.assertNotEqual(signer_a, signer_c)
+        signer_c.verify(key)
+        self.assertEqual(signer_a, signer_c)
+
+    def test_jws_representations(self):
+        key = jwk.JWK.generate(kty='oct', size=256)
+        payload = "My Integrity protected message"
+        token = jws.JWS(payload.encode('utf-8'))
+        self.assertEqual(str(token),
+                         "JWS(payload=My Integrity protected message)")
+        self.assertEqual(repr(token),
+                         "JWS(payload=My Integrity protected message)")
+        token.add_signature(key, None,
+                            json_encode({"alg": "HS256"}),
+                            json_encode({"kid": key.thumbprint()}))
+        ser = token.serialize()
+        self.assertEqual(str(token), ser)
+        self.assertEqual(repr(token), f'JWS.from_json_token("{ser}")')
+
+    def test_jwe_equality(self):
+        key = jwk.JWK.generate(kty='oct', size=256)
+        payload = "My Encrypted message"
+        signer_a = jwe.JWE(payload.encode('utf-8'),
+                           json_encode({"alg": "A256KW",
+                                        "enc": "A256CBC-HS512"}))
+        signer_b = jwe.JWE(payload.encode('utf-8'),
+                           json_encode({"alg": "A256KW",
+                                        "enc": "A256CBC-HS512"}))
+        self.assertEqual(signer_a, signer_b)
+
+        signer_a.add_recipient(key)
+        # One is encrypted, the other is not
+        self.assertNotEqual(signer_a, signer_b)
+
+        signer_b.add_recipient(key)
+        # Encryption generates a random CEK so tokens will always differ
+        self.assertNotEqual(signer_a, signer_b)
+
+        signer_c = jwe.JWE.from_jose_token(signer_a.serialize())
+        self.assertEqual(signer_a, signer_c)
+
+    def test_jwe_representations(self):
+        key = jwk.JWK.generate(kty='oct', size=256)
+        payload = "My Encrypted message"
+        token = jwe.JWE(payload.encode('utf-8'),
+                        json_encode({"alg": "A256KW",
+                                     "enc": "A256CBC-HS512"}))
+        strrep = "JWE(plaintext=b\'My Encrypted message\', " + \
+                 "protected={\"alg\":\"A256KW\"," + \
+                 "\"enc\":\"A256CBC-HS512\"}, " + \
+                 "unprotected=None, aad=None, algs=None)"
+        self.assertEqual(str(token), strrep)
+        self.assertEqual(repr(token), strrep)
+
+        token.add_recipient(key)
+        ser = token.serialize()
+        self.assertEqual(str(token), ser)
+        self.assertEqual(repr(token), f'JWE.from_json_token("{ser}")')
+
+    def test_jwt_equality(self):
+        key = jwk.JWK.generate(kty='oct', size=256)
+        signer_a = jwt.JWT(header={"alg": "HS256"},
+                           claims={"info": "I'm a signed token"})
+        signer_b = jwt.JWT(header={"alg": "HS256"},
+                           claims={"info": "I'm a signed token"})
+        self.assertEqual(signer_a, signer_b)
+
+        signer_a.make_signed_token(key)
+        # One is signed, the other is not
+        self.assertNotEqual(signer_a, signer_b)
+
+        signer_b.make_signed_token(key)
+        # This kind of signature is deterministic so they should be equal
+        self.assertEqual(signer_a, signer_b)
+
+        signer_c = jwt.JWT.from_jose_token(signer_a.serialize())
+        self.assertNotEqual(signer_a, signer_c)
+        signer_c.validate(key)
+        self.assertEqual(signer_a, signer_c)
+
+        ea = jwt.JWT(header={"alg": "A256KW", "enc": "A256CBC-HS512"},
+                     claims=signer_a.serialize())
+        eb = jwt.JWT(header={"alg": "A256KW", "enc": "A256CBC-HS512"},
+                     claims=signer_b.serialize())
+        self.assertEqual(ea, eb)
+
+        ea.make_encrypted_token(key)
+        # One is encrypted, the other is not
+        self.assertNotEqual(ea, eb)
+
+        eb.make_encrypted_token(key)
+        # Encryption generates a random CEK so tokens will always differ
+        self.assertNotEqual(ea, eb)
+
+        ect = jwt.JWT.from_jose_token(ea.serialize())
+        self.assertNotEqual(ea, ect)
+        ect.expected_type = "JWE"
+        ect.validate(key)
+        self.assertEqual(ea, ect)
+
+    def test_jwt_representations(self):
+        key = jwk.JWK.generate(kty='oct', size=256)
+        token = jwt.JWT(header={"alg": "HS256"},
+                        claims={"info": "I'm a signed token"})
+        strrep = 'JWT(header={"alg":"HS256"}, claims={"info":"I\'m a ' + \
+                 'signed token"}, jwt=None, key=None, algs=None, ' + \
+                 'default_claims=None, check_claims=None)'
+        self.assertEqual(str(token), strrep)
+        self.assertEqual(repr(token), strrep)
+        token.make_signed_token(key)
+
+        ser = token.serialize()
+        self.assertEqual(str(token), ser)
+        ser2 = token.token.serialize()
+
+        reprrep = 'JWT(header={"alg":"HS256"}, ' + \
+                  'claims={"info":"I\'m a signed token"}, ' + \
+                  f'jwt=JWS.from_json_token("{ser2}"), key=None, ' + \
+                  'algs=None, default_claims=None, check_claims=None)'
+        self.assertEqual(repr(token), reprrep)
