@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from deprecated import deprecated
+from typing_extensions import deprecated
 
 from jwcrypto.common import JWException
 from jwcrypto.common import base64url_decode, base64url_encode
@@ -74,12 +74,15 @@ except ImportError:
     X448PrivateKey = UnimplementedOKPCurveKey
 
 
-_OKP_CURVE = namedtuple('Name', 'pubkey privkey')
+_Ed25519_CURVE = namedtuple('Ed25519', 'pubkey privkey')
+_Ed448_CURVE = namedtuple('Ed448', 'pubkey privkey')
+_X25519_CURVE = namedtuple('X25519', 'pubkey privkey')
+_X448_CURVE = namedtuple('X448', 'pubkey privkey')
 _OKP_CURVES_TABLE = {
-    'Ed25519': _OKP_CURVE(Ed25519PublicKey, Ed25519PrivateKey),
-    'Ed448': _OKP_CURVE(Ed448PublicKey, Ed448PrivateKey),
-    'X25519': _OKP_CURVE(X25519PublicKey, X25519PrivateKey),
-    'X448': _OKP_CURVE(X448PublicKey, X448PrivateKey)
+    'Ed25519': _Ed25519_CURVE(Ed25519PublicKey, Ed25519PrivateKey),
+    'Ed448': _Ed448_CURVE(Ed448PublicKey, Ed448PrivateKey),
+    'X25519': _X25519_CURVE(X25519PublicKey, X25519PrivateKey),
+    'X448': _X448_CURVE(X448PublicKey, X448PrivateKey)
 }
 
 
@@ -159,7 +162,17 @@ JWKEllipticCurveRegistry = {'P-256': 'P-256 curve',
                             'Ed25519': 'Ed25519 signature algorithm key pairs',
                             'Ed448': 'Ed448 signature algorithm key pairs',
                             'X25519': 'X25519 function key pairs',
-                            'X448': 'X448 function key pairs'}
+                            'X448': 'X448 function key pairs',
+                            'BP-256': 'BrainpoolP256R1 curve'
+                                    ' (unregistered, custom-defined in breach'
+                                    ' of IETF rules by gematik GmbH)',
+                            'BP-384': 'BrainpoolP384R1 curve'
+                                    ' (unregistered, custom-defined in breach'
+                                    ' of IETF rules by gematik GmbH)',
+                            'BP-512': 'BrainpoolP512R1 curve'
+                                    ' (unregistered, custom-defined in breach'
+                                    ' of IETF rules by gematik GmbH)'
+                            }
 """Registry of allowed Elliptic Curves"""
 
 # RFC 7517 - 8.2
@@ -183,7 +196,28 @@ JWKOperationsRegistry = {'sign': 'Compute digital Signature or MAC',
 JWKpycaCurveMap = {'secp256r1': 'P-256',
                    'secp384r1': 'P-384',
                    'secp521r1': 'P-521',
-                   'secp256k1': 'secp256k1'}
+                   'secp256k1': 'secp256k1',
+                   'brainpoolP256r1': 'BP-256',
+                   'brainpoolP384r1': 'BP-384',
+                   'brainpoolP512r1': 'BP-512'}
+
+IANANamedInformationHashAlgorithmRegistry = {
+    'sha-256': hashes.SHA256(),
+    'sha-256-128': None,
+    'sha-256-120': None,
+    'sha-256-96': None,
+    'sha-256-64': None,
+    'sha-256-32': None,
+    'sha-384': hashes.SHA384(),
+    'sha-512': hashes.SHA512(),
+    'sha3-224': hashes.SHA3_224(),
+    'sha3-256': hashes.SHA3_256(),
+    'sha3-384': hashes.SHA3_384(),
+    'sha3-512': hashes.SHA3_512(),
+    'blake2s-256': hashes.BLAKE2s(32),
+    'blake2b-256': None,  # pyca supports only 64 bytes for BLAKEb
+    'blake2b-512': hashes.BLAKE2b(64),
+}
 
 
 class InvalidJWKType(JWException):
@@ -271,7 +305,7 @@ class JWK(dict):
     """
 
     def __init__(self, **kwargs):
-        """Creates a new JWK object.
+        r"""Creates a new JWK object.
 
         The function arguments must be valid parameters as defined in the
         'IANA JSON Web Key Set Parameters registry' and specified in
@@ -295,6 +329,8 @@ class JWK(dict):
         Alternatively if the 'generate' parameter is provided with a
         valid key type as value then a new key will be generated according
         to the defaults or provided key strength options (type specific).
+
+        :param \**kwargs: parameters (optional).
 
         :raises InvalidJWKType: if the key type is invalid
         :raises InvalidJWKValue: if incorrect or inconsistent parameters
@@ -341,7 +377,7 @@ class JWK(dict):
                 alg = JWA.instantiate_alg(params['alg'])
             except KeyError as e:
                 raise ValueError("Invalid 'alg' parameter") from e
-            size = alg.keysize
+            size = alg.input_keysize
         return size
 
     def _generate_oct(self, params):
@@ -395,19 +431,51 @@ class JWK(dict):
         )
         self.import_key(**params)
 
-    def _get_curve_by_name(self, name):
-        if name == 'P-256':
-            return ec.SECP256R1()
-        elif name == 'P-384':
-            return ec.SECP384R1()
-        elif name == 'P-521':
-            return ec.SECP521R1()
-        elif name == 'secp256k1':
-            return ec.SECP256K1()
-        elif name in _OKP_CURVES_TABLE:
-            return name
+    def _get_curve_by_name(self, name, ctype=None):
+        crv = self.get('crv')
+
+        if name is None:
+            cname = crv
+        elif name == 'P-256K':
+            # P-256K is an alias for 'secp256k1' to handle compatibility
+            # with some implementation using this old drafting name
+            cname = 'secp256k1'
         else:
-            raise InvalidJWKValue('Unknown Elliptic Curve Type')
+            cname = name
+
+        # Check we are asking for the correct curve unless this is being
+        # requested for generation on a blank JWK object
+        if crv:
+            ccrv = crv
+            if ccrv == 'P-256K':
+                ccrv = 'secp256k1'
+            if ccrv != cname:
+                raise InvalidJWKValue('Curve requested is "%s", but '
+                                      'key curve is "%s"' % (name, crv))
+        kty = self.get('kty')
+        if kty is not None and ctype is not None and kty != ctype:
+            raise InvalidJWKType('Curve Requested is of type "%s", but '
+                                 'key curve is of type "%s"' % (ctype, kty))
+
+        # Return a curve object
+        if cname == 'P-256':
+            return ec.SECP256R1()
+        elif cname == 'P-384':
+            return ec.SECP384R1()
+        elif cname == 'P-521':
+            return ec.SECP521R1()
+        elif cname == 'secp256k1':
+            return ec.SECP256K1()
+        elif cname == 'BP-256':
+            return ec.BrainpoolP256R1()
+        elif cname == 'BP-384':
+            return ec.BrainpoolP384R1()
+        elif cname == 'BP-512':
+            return ec.BrainpoolP512R1()
+        elif cname in _OKP_CURVES_TABLE:
+            return _OKP_CURVES_TABLE[cname]
+        else:
+            raise InvalidJWKValue('Unknown Curve Name [%s]' % (name))
 
     def _generate_EC(self, params):
         curve = 'P-256'
@@ -417,8 +485,8 @@ class JWK(dict):
         # precedence
         if 'crv' in params:
             curve = params.pop('crv')
-        curve_name = self._get_curve_by_name(curve)
-        key = ec.generate_private_key(curve_name, default_backend())
+        curve_fn = self._get_curve_by_name(curve, 'EC')
+        key = ec.generate_private_key(curve_fn, default_backend())
         self._import_pyca_pri_ec(key, **params)
 
     def _import_pyca_pri_ec(self, key, **params):
@@ -447,11 +515,8 @@ class JWK(dict):
     def _generate_OKP(self, params):
         if 'crv' not in params:
             raise InvalidJWKValue('Must specify "crv" for OKP key generation')
-        try:
-            key = _OKP_CURVES_TABLE[params['crv']].privkey.generate()
-        except KeyError as e:
-            raise InvalidJWKValue('"%s" is not a supported curve for the '
-                                  'OKP key type' % params['crv']) from e
+        curve_fn = self._get_curve_by_name(params['crv'], 'OKP')
+        key = curve_fn.privkey.generate()
         self._import_pyca_pri_okp(key, **params)
 
     def _okp_curve_from_pyca_key(self, key):
@@ -541,11 +606,11 @@ class JWK(dict):
         # check key_ops
         if 'key_ops' in newkey:
             for ko in newkey['key_ops']:
-                c = 0
+                cnt = 0
                 for cko in newkey['key_ops']:
                     if ko == cko:
-                        c += 1
-                if c != 1:
+                        cnt += 1
+                if cnt != 1:
                     raise InvalidJWKValue('Duplicate values in "key_ops"')
 
         # check use/key_ops consistency
@@ -576,6 +641,9 @@ class JWK(dict):
         """Creates a RFC 7517 JWK from the standard JSON format.
 
         :param key: The RFC 7517 representation of a JWK.
+
+        :return: A JWK object that holds the json key.
+        :rtype: JWK
         """
         obj = cls()
         try:
@@ -592,6 +660,11 @@ class JWK(dict):
 
         :param private_key(bool): Whether to export the private key.
                                   Defaults to True.
+
+        :return: A portable representation of the key.
+            If as_dict is True then a dictionary is returned.
+            By default a json string
+        :rtype: `str` or `dict`
         """
         if private_key is True:
             # Use _export_all for backwards compatibility, as this
@@ -606,6 +679,11 @@ class JWK(dict):
         is called on a symmetric key.
 
         :param as_dict(bool): If set to True export as python dict not JSON
+
+        :return: A portable representation of the public key only.
+            If as_dict is True then a dictionary is returned.
+            By default a json string
+        :rtype: `str` or `dict`
         """
         pub = self._public_params()
         if as_dict is True:
@@ -639,6 +717,11 @@ class JWK(dict):
         It fails for a JWK that has only a public key or is symmetric.
 
         :param as_dict(bool): If set to True export as python dict not JSON
+
+        :return: A portable representation of a private key.
+            If as_dict is True then a dictionary is returned.
+            By default a json string
+        :rtype: `str` or `dict`
         """
         if self.has_private:
             return self._export_all(as_dict)
@@ -681,13 +764,13 @@ class JWK(dict):
         return self.get('kty') == 'oct'
 
     @property
-    @deprecated
+    @deprecated('')
     def key_type(self):
         """The Key type"""
         return self.get('kty')
 
     @property
-    @deprecated
+    @deprecated('')
     def key_id(self):
         """The Key ID.
         Provided by the kid parameter if present, otherwise returns None.
@@ -695,13 +778,14 @@ class JWK(dict):
         return self.get('kid')
 
     @property
-    @deprecated
+    @deprecated('')
     def key_curve(self):
         """The Curve Name."""
         if self.get('kty') not in ['EC', 'OKP']:
             raise InvalidJWKType('Not an EC or OKP key')
         return self.get('crv')
 
+    @deprecated('')
     def get_curve(self, arg):
         """Gets the Elliptic Curve associated with the key.
 
@@ -709,15 +793,11 @@ class JWK(dict):
 
         :raises InvalidJWKType: the key is not an EC or OKP key.
         :raises InvalidJWKValue: if the curve name is invalid.
-        """
-        crv = self.get('crv')
-        if self.get('kty') not in ['EC', 'OKP']:
-            raise InvalidJWKType('Not an EC or OKP key')
-        if arg and crv != arg:
-            raise InvalidJWKValue('Curve requested is "%s", but '
-                                  'key curve is "%s"' % (arg, crv))
 
-        return self._get_curve_by_name(crv)
+        :return: An EllipticCurve object
+        :rtype: `EllipticCurve`
+        """
+        return self._get_curve_by_name(arg)
 
     def _check_constraints(self, usage, operation):
         use = self.get('use')
@@ -765,7 +845,8 @@ class JWK(dict):
     def _ec_pub_n(self, curve):
         x = self._decode_int(self.get('x'))
         y = self._decode_int(self.get('y'))
-        return ec.EllipticCurvePublicNumbers(x, y, self.get_curve(curve))
+        curve_fn = self._get_curve_by_name(curve, ctype='EC')
+        return ec.EllipticCurvePublicNumbers(x, y, curve_fn)
 
     def _ec_pri_n(self, curve):
         d = self._decode_int(self.get('d'))
@@ -854,6 +935,9 @@ class JWK(dict):
          not permitted with this key.
         :raises InvalidJWKUsage: if the use constraints do not permit
          the operation.
+
+        :return: A Python Cryptography key object for asymmetric keys
+            or a baseurl64_encoded octet string for symmetric keys
         """
         validops = self.get('key_ops',
                             list(JWKOperationsRegistry.keys()))
@@ -887,9 +971,13 @@ class JWK(dict):
             self._import_pyca_pri_ec(key)
         elif isinstance(key, ec.EllipticCurvePublicKey):
             self._import_pyca_pub_ec(key)
-        elif isinstance(key, (Ed25519PrivateKey, Ed448PrivateKey)):
+        elif isinstance(key, (Ed25519PrivateKey,
+                              Ed448PrivateKey,
+                              X25519PrivateKey)):
             self._import_pyca_pri_okp(key)
-        elif isinstance(key, (Ed25519PublicKey, Ed448PublicKey)):
+        elif isinstance(key, (Ed25519PublicKey,
+                              Ed448PublicKey,
+                              X25519PublicKey)):
             self._import_pyca_pub_okp(key)
         else:
             raise InvalidJWKValue('Unknown key object %r' % key)
@@ -940,27 +1028,30 @@ class JWK(dict):
          Defaults to False which will cause the operation to fail. To avoid
          encryption the user must explicitly pass None, otherwise the user
          needs to provide a password in a bytes buffer.
+
+        :return: A serialized bytes buffer containing a PEM formatted key.
+        :rtype: `bytes`
         """
-        e = serialization.Encoding.PEM
+        enc = serialization.Encoding.PEM
         if private_key:
             if not self.has_private:
                 raise InvalidJWKType("No private key available")
             f = serialization.PrivateFormat.PKCS8
             if password is None:
-                a = serialization.NoEncryption()
+                enc_alg = serialization.NoEncryption()
             elif isinstance(password, bytes):
-                a = serialization.BestAvailableEncryption(password)
+                enc_alg = serialization.BestAvailableEncryption(password)
             elif password is False:
                 raise ValueError("The password must be None or a bytes string")
             else:
                 raise TypeError("The password string must be bytes")
             return self._get_private_key().private_bytes(
-                encoding=e, format=f, encryption_algorithm=a)
+                encoding=enc, format=f, encryption_algorithm=enc_alg)
         else:
             if not self.has_public:
                 raise InvalidJWKType("No public key available")
             f = serialization.PublicFormat.SubjectPublicKeyInfo
-            return self._get_public_key().public_bytes(encoding=e, format=f)
+            return self._get_public_key().public_bytes(encoding=enc, format=f)
 
     @classmethod
     def from_pyca(cls, key):
@@ -975,6 +1066,9 @@ class JWK(dict):
 
         :param data(bytes): The data contained in a PEM file.
         :param password(bytes): An optional password to unwrap the key.
+
+        :return: A JWK object.
+        :rtype: JWK
         """
         obj = cls()
         obj.import_from_pem(data, password)
@@ -984,6 +1078,9 @@ class JWK(dict):
         """Returns the key thumbprint as specified by RFC 7638.
 
         :param hashalg: A hash function (defaults to SHA256)
+
+        :return: A base64url encoded digest of the key
+        :rtype: `str`
         """
 
         t = {'kty': self.get('kty')}
@@ -993,6 +1090,28 @@ class JWK(dict):
         digest = hashes.Hash(hashalg, backend=default_backend())
         digest.update(bytes(json_encode(t).encode('utf8')))
         return base64url_encode(digest.finalize())
+
+    def thumbprint_uri(self, hname='sha-256'):
+        """Returns the key thumbprint URI as specified by RFC 9278.
+
+        :param hname: A hash function name as specified in IANA's
+         Named Information registry:
+         https://www.iana.org/assignments/named-information/
+         Values from `IANANamedInformationHashAlgorithmRegistry`
+
+        :return: A JWK Thumbprint URI
+        :rtype: `str`
+        """
+
+        try:
+            h = IANANamedInformationHashAlgorithmRegistry[hname]
+        except KeyError as e:
+            raise InvalidJWKValue('Unknown hash "{}"'.format(hname)) from e
+        if h is None:
+            raise InvalidJWKValue('Unsupported hash "{}"'.format(hname))
+
+        t = self.thumbprint(h)
+        return "urn:ietf:params:oauth:jwk-thumbprint:{}:{}".format(hname, t)
 
     # Methods to constrain what this dict allows
     def __setitem__(self, item, value):
@@ -1053,6 +1172,10 @@ class JWK(dict):
         super(JWK, self).__setitem__(item, value)
 
     def update(self, *args, **kwargs):
+        r"""
+        :param \*args: arguments
+        :param \**kwargs: keyword arguments
+        """
         for k, v in dict(*args, **kwargs).items():
             self.__setitem__(k, v)
 
@@ -1118,7 +1241,10 @@ class JWK(dict):
     def from_password(cls, password):
         """Creates a symmetric JWK key from a user password.
 
-        :param key: A password in utf8 format.
+        :param password: A password in utf8 format.
+
+        :return: a JWK object
+        :rtype: JWK
         """
         obj = cls()
         params = {'kty': 'oct'}
@@ -1158,6 +1284,7 @@ class JWKSet(dict):
     Creates a special key 'keys' that is of a type derived from 'set'
     The 'keys' attribute accepts only :class:`jwcrypto.jwk.JWK` elements.
     """
+
     def __init__(self, *args, **kwargs):
         super(JWKSet, self).__init__()
         super(JWKSet, self).__setitem__('keys', _JWKkeys())
@@ -1176,6 +1303,10 @@ class JWKSet(dict):
             super(JWKSet, self).__setitem__(key, val)
 
     def update(self, *args, **kwargs):
+        r"""
+        :param \*args: arguments
+        :param \**kwargs: keyword arguments
+        """
         for k, v in dict(*args, **kwargs).items():
             self.__setitem__(k, v)
 
@@ -1195,6 +1326,11 @@ class JWKSet(dict):
                                   Defaults to True.
         :param as_dict(bool): Whether to return a dict instead of
                               a JSON object
+
+        :return: A portable representation of the key set.
+            If as_dict is True then a dictionary is returned.
+            By default a json string
+        :rtype: `str` or `dict`
         """
         exp_dict = {}
         for k, v in self.items():
@@ -1233,6 +1369,9 @@ class JWKSet(dict):
         """Creates a RFC 7517 key set from the standard JSON format.
 
         :param keyset: The RFC 7517 representation of a JOSE key set.
+
+        :return: A JWKSet object.
+        :rtype: JWKSet
         """
         obj = cls()
         obj.import_keyset(keyset)
@@ -1241,11 +1380,27 @@ class JWKSet(dict):
     def get_key(self, kid):
         """Gets a key from the set.
         :param kid: the 'kid' key identifier.
+
+        :return: A JWK from the set
+        :rtype: JWK
         """
-        for jwk in self['keys']:
-            if jwk.get('kid') == kid:
-                return jwk
-        return None
+        keys = self.get_keys(kid)
+        if len(keys) > 1:
+            raise InvalidJWKValue(
+                'Duplicate keys found with requested kid: 1 expected')
+        try:
+            return tuple(keys)[0]
+        except IndexError:
+            return None
+
+    def get_keys(self, kid):
+        """Gets keys from the set with matching kid.
+        :param kid: the 'kid' key identifier.
+
+        :return: a List of keys
+        :rtype: `list`
+        """
+        return {key for key in self['keys'] if key.get('kid') == kid}
 
     def __repr__(self):
         repr_dict = {}

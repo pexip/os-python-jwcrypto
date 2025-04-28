@@ -3,11 +3,15 @@
 import zlib
 
 from jwcrypto import common
-from jwcrypto.common import JWException
+from jwcrypto.common import JWException, JWKeyNotFound
 from jwcrypto.common import JWSEHeaderParameter, JWSEHeaderRegistry
 from jwcrypto.common import base64url_decode, base64url_encode
 from jwcrypto.common import json_decode, json_encode
 from jwcrypto.jwa import JWA
+from jwcrypto.jwk import JWKSet
+
+# Limit the amount of data we are willing to decompress by default.
+default_max_compressed_size = 256 * 1024
 
 
 # RFC 7516 - 4.1
@@ -271,6 +275,9 @@ class JWE:
          with the compact representation and `compact` is True.
         :raises InvalidJWEOperation: if no recipients have been added
          to the object.
+
+        :return: A json formatted string or a compact representation string
+        :rtype: `str`
         """
 
         if 'ciphertext' not in self.objects:
@@ -280,7 +287,7 @@ class JWE:
             for invalid in 'aad', 'unprotected':
                 if invalid in self.objects:
                     raise InvalidJWEOperation(
-                        "Can't use compact encoding when the '%s' parameter"
+                        "Can't use compact encoding when the '%s' parameter "
                         "is set" % invalid)
             if 'protected' not in self.objects:
                 raise InvalidJWEOperation(
@@ -355,6 +362,14 @@ class JWE:
                     raise InvalidJWEData('Unsupported critical header: '
                                          '"%s"' % k)
 
+    def _unwrap_decrypt(self, alg, enc, key, enckey, header,
+                        aad, iv, ciphertext, tag):
+        cek = alg.unwrap(key, enc.wrap_key_size, enckey, header)
+        data = enc.decrypt(cek, aad, iv, ciphertext, tag)
+        self.decryptlog.append('Success')
+        self.cek = cek
+        return data
+
     # FIXME: allow to specify which algorithms to accept as valid
     def _decrypt(self, key, ppe):
 
@@ -374,19 +389,46 @@ class JWE:
         aad = base64url_encode(self.objects.get('protected', ''))
         if 'aad' in self.objects:
             aad += '.' + base64url_encode(self.objects['aad'])
+        aad = aad.encode('utf-8')
 
-        cek = alg.unwrap(key, enc.wrap_key_size,
-                         ppe.get('encrypted_key', b''), jh)
-        data = enc.decrypt(cek, aad.encode('utf-8'),
-                           self.objects['iv'],
-                           self.objects['ciphertext'],
-                           self.objects['tag'])
+        if isinstance(key, JWKSet):
+            keys = key
+            if 'kid' in self.jose_header:
+                kid_keys = key.get_keys(self.jose_header['kid'])
+                if not kid_keys:
+                    raise JWKeyNotFound('Key ID {} not in key set'.format(
+                                        self.jose_header['kid']))
+                keys = kid_keys
 
-        self.decryptlog.append('Success')
-        self.cek = cek
+            for k in keys:
+                try:
+                    data = self._unwrap_decrypt(alg, enc, k,
+                                                ppe.get('encrypted_key', b''),
+                                                jh, aad, self.objects['iv'],
+                                                self.objects['ciphertext'],
+                                                self.objects['tag'])
+                    self.decryptlog.append("Success")
+                    break
+                except Exception as e:  # pylint: disable=broad-except
+                    keyid = k.get('kid', k.thumbprint())
+                    self.decryptlog.append('Key [{}] failed: [{}]'.format(
+                                           keyid, repr(e)))
+
+            if "Success" not in self.decryptlog:
+                raise JWKeyNotFound('No working key found in key set')
+        else:
+            data = self._unwrap_decrypt(alg, enc, key,
+                                        ppe.get('encrypted_key', b''),
+                                        jh, aad, self.objects['iv'],
+                                        self.objects['ciphertext'],
+                                        self.objects['tag'])
 
         compress = jh.get('zip', None)
         if compress == 'DEF':
+            if len(data) > default_max_compressed_size:
+                raise InvalidJWEData(
+                    'Compressed data exceeds maximum allowed'
+                    'size' + f' ({default_max_compressed_size})')
             self.plaintext = zlib.decompress(data, -zlib.MAX_WBITS)
         elif compress is None:
             self.plaintext = data
@@ -397,31 +439,40 @@ class JWE:
         """Decrypt a JWE token.
 
         :param key: The (:class:`jwcrypto.jwk.JWK`) decryption key.
-        :param key: A (:class:`jwcrypto.jwk.JWK`) decryption key or a password
-         string (optional).
+        :param key: A (:class:`jwcrypto.jwk.JWK`) decryption key,
+         or a (:class:`jwcrypto.jwk.JWKSet`) that contains a key indexed
+         by the 'kid' header or (deprecated) a string containing a password.
 
         :raises InvalidJWEOperation: if the key is not a JWK object.
         :raises InvalidJWEData: if the ciphertext can't be decrypted or
          the object is otherwise malformed.
+        :raises JWKeyNotFound: if key is a JWKSet and the key is not found.
         """
 
         if 'ciphertext' not in self.objects:
             raise InvalidJWEOperation("No available ciphertext")
         self.decryptlog = []
+        missingkey = False
 
         if 'recipients' in self.objects:
             for rec in self.objects['recipients']:
                 try:
                     self._decrypt(key, rec)
                 except Exception as e:  # pylint: disable=broad-except
+                    if isinstance(e, JWKeyNotFound):
+                        missingkey = True
                     self.decryptlog.append('Failed: [%s]' % repr(e))
         else:
             try:
                 self._decrypt(key, self.objects)
             except Exception as e:  # pylint: disable=broad-except
+                if isinstance(e, JWKeyNotFound):
+                    missingkey = True
                 self.decryptlog.append('Failed: [%s]' % repr(e))
 
         if not self.plaintext:
+            if missingkey:
+                raise JWKeyNotFound("Key Not found in JWKSet")
             raise InvalidJWEData('No recipient matched the provided '
                                  'key' + repr(self.decryptlog))
 
@@ -431,12 +482,15 @@ class JWE:
         NOTE: Destroys any current status and tries to import the raw
         JWE provided.
 
+        If a key is provided a decryption step will be attempted after
+        the object is successfully deserialized.
+
         :param raw_jwe: a 'raw' JWE token (JSON Encoded or Compact
          notation) string.
-        :param key: A (:class:`jwcrypto.jwk.JWK`) decryption key or a password
-         string (optional).
-         If a key is provided a decryption step will be attempted after
-         the object is successfully deserialized.
+        :param key: A (:class:`jwcrypto.jwk.JWK`) decryption key,
+         or a (:class:`jwcrypto.jwk.JWKSet`) that contains a key indexed
+         by the 'kid' header or (deprecated) a string containing a password
+         (optional).
 
         :raises InvalidJWEData: if the raw object is an invalid JWE token.
         :raises InvalidJWEOperation: if the decryption fails.
@@ -478,17 +532,17 @@ class JWE:
                         o['header'] = json_encode(djwe['header'])
 
             except ValueError as e:
-                c = raw_jwe.split('.')
-                if len(c) != 5:
+                data = raw_jwe.split('.')
+                if len(data) != 5:
                     raise InvalidJWEData() from e
-                p = base64url_decode(c[0])
+                p = base64url_decode(data[0])
                 o['protected'] = p.decode('utf-8')
-                ekey = base64url_decode(c[1])
+                ekey = base64url_decode(data[1])
                 if ekey != b'':
-                    o['encrypted_key'] = base64url_decode(c[1])
-                o['iv'] = base64url_decode(c[2])
-                o['ciphertext'] = base64url_decode(c[3])
-                o['tag'] = base64url_decode(c[4])
+                    o['encrypted_key'] = base64url_decode(data[1])
+                o['iv'] = base64url_decode(data[2])
+                o['ciphertext'] = base64url_decode(data[3])
+                o['tag'] = base64url_decode(data[4])
 
             self.objects = o
 
@@ -510,3 +564,52 @@ class JWE:
         if len(jh) == 0:
             raise InvalidJWEOperation("JOSE Header not available")
         return jh
+
+    @classmethod
+    def from_jose_token(cls, token):
+        """Creates a JWE object from a serialized JWE token.
+
+        :param token: A string with the json or compat representation
+         of the token.
+
+        :raises InvalidJWEData: if the raw object is an invalid JWE token.
+
+        :return: A JWE token
+        :rtype: JWE
+        """
+
+        obj = cls()
+        obj.deserialize(token)
+        return obj
+
+    def __eq__(self, other):
+        if not isinstance(other, JWE):
+            return False
+        try:
+            return self.serialize() == other.serialize()
+        except Exception:  # pylint: disable=broad-except
+            data1 = {'plaintext': self.plaintext}
+            data1.update(self.objects)
+            data2 = {'plaintext': other.plaintext}
+            data2.update(other.objects)
+            return data1 == data2
+
+    def __str__(self):
+        try:
+            return self.serialize()
+        except Exception:  # pylint: disable=broad-except
+            return self.__repr__()
+
+    def __repr__(self):
+        try:
+            return f'JWE.from_json_token("{self.serialize()}")'
+        except Exception:  # pylint: disable=broad-except
+            plaintext = repr(self.plaintext)
+            protected = self.objects.get('protected')
+            unprotected = self.objects.get('unprotected')
+            aad = self.objects.get('aad')
+            algs = self._allowed_algs
+            return f'JWE(plaintext={plaintext}, ' + \
+                   f'protected={protected}, ' + \
+                   f'unprotected={unprotected}, ' + \
+                   f'aad={aad}, algs={algs})'

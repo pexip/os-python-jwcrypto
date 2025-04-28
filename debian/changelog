@@ -1,3 +1,20 @@
+python-jwcrypto (1.5.6-1) unstable; urgency=medium
+
+  * New upstream release.
+    - CVE-2024-28102 (Closes: #1065688)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 02 May 2024 09:03:21 +0300
+
+python-jwcrypto (1.5.4-1) unstable; urgency=medium
+
+  * New upstream release.
+  * control: Fix maintainer address.
+  * rules: Remove empty doc/jwcrypto. (Closes: #1023600)
+  * control: Add python3-typing-extensions to build-depends.
+  * control: Migrate to nose2. (Closes: #1018520)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 15 Feb 2024 10:26:53 +0200
+
 python-jwcrypto (1.1.0-1+pexip24u6+deb12u1) pexip; urgency=medium
 
   * New upstream release
@@ -18,13 +35,6 @@ python-jwcrypto (1.1.0-1+pexip24u5) pexip-bookworm; urgency=medium
   * New versioning scheme
 
  -- Mark Hymers <mark.hymers@pexip.com>  Thu, 01 Feb 2024 16:22:58 +0000
-
-python-jwcrypto (1.1.0-1+deb12u1) bookworm; urgency=medium
-
-  * Apply and tweak upstream security fix for CVE-2024-28102
-    Address potential DoS with high compression ratio
-
- -- Steve McIntyre <93sam@debian.org>  Fri, 26 Apr 2024 17:18:31 +0100
 
 python-jwcrypto (1.1.0-1pexip4) pexip-bookworm; urgency=medium
 

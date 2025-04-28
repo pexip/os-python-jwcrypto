@@ -1,3 +1,1 @@
-disable-tests-openssl102.patch
 pexip/no_deprecated.diff
-CVE-2024-28102.patch
