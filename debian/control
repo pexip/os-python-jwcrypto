@@ -9,7 +9,6 @@ Build-Depends:
  dh-python,
  python3-all,
  python3-cryptography,
- python3-deprecated,
  python3-nose2,
  python3-setuptools,
  python3-typing-extensions,

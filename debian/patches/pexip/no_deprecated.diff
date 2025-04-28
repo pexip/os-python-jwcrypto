@@ -1,48 +1,59 @@
-Index: os-python-jwcrypto/jwcrypto/jwk.py
-===================================================================
---- os-python-jwcrypto.orig/jwcrypto/jwk.py
-+++ os-python-jwcrypto/jwcrypto/jwk.py
+--- python-jwcrypto.orig/jwcrypto/jwk.py
++++ python-jwcrypto/jwcrypto/jwk.py
 @@ -11,7 +11,7 @@ from cryptography.hazmat.primitives impo
  from cryptography.hazmat.primitives.asymmetric import ec
  from cryptography.hazmat.primitives.asymmetric import rsa
  
--from deprecated import deprecated
-+# from deprecated import deprecated
+-from typing_extensions import deprecated
++#from typing_extensions import deprecated
  
  from jwcrypto.common import JWException
  from jwcrypto.common import base64url_decode, base64url_encode
-@@ -681,13 +681,11 @@ class JWK(dict):
+@@ -764,13 +764,11 @@ class JWK(dict):
          return self.get('kty') == 'oct'
  
      @property
--    @deprecated
+-    @deprecated('')
      def key_type(self):
          """The Key type"""
          return self.get('kty')
  
      @property
--    @deprecated
+-    @deprecated('')
      def key_id(self):
          """The Key ID.
          Provided by the kid parameter if present, otherwise returns None.
-@@ -695,7 +693,6 @@ class JWK(dict):
+@@ -778,14 +776,12 @@ class JWK(dict):
          return self.get('kid')
  
      @property
--    @deprecated
+-    @deprecated('')
      def key_curve(self):
          """The Curve Name."""
          if self.get('kty') not in ['EC', 'OKP']:
-Index: os-python-jwcrypto/setup.py
-===================================================================
---- os-python-jwcrypto.orig/setup.py
-+++ os-python-jwcrypto/setup.py
-@@ -26,7 +26,7 @@ setup(
-     data_files = [('share/doc/jwcrypto', ['LICENSE', 'README.md'])],
-     install_requires = [
-         'cryptography >= 2.3',
--        'deprecated',
-+#        'deprecated',
-     ],
-     python_requires = '>= 3.6',
- )
+             raise InvalidJWKType('Not an EC or OKP key')
+         return self.get('crv')
+ 
+-    @deprecated('')
+     def get_curve(self, arg):
+         """Gets the Elliptic Curve associated with the key.
+ 
+--- python-jwcrypto.orig/jwcrypto/jwt.py
++++ python-jwcrypto/jwcrypto/jwt.py
+@@ -4,7 +4,7 @@ import copy
+ import time
+ import uuid
+ 
+-from typing_extensions import deprecated
++#from typing_extensions import deprecated
+ 
+ from jwcrypto.common import JWException, JWKeyNotFound
+ from jwcrypto.common import json_decode, json_encode
+@@ -123,7 +123,6 @@ class JWTInvalidClaimFormat(JWException)
+         super(JWTInvalidClaimFormat, self).__init__(msg)
+ 
+ 
+-@deprecated('')
+ class JWTMissingKeyID(JWException):
+     """JSON Web Token is missing key id.
+ 
