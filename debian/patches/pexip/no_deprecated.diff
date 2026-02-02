@@ -57,3 +57,14 @@
  class JWTMissingKeyID(JWException):
      """JSON Web Token is missing key id.
  
+--- python-jwcrypto.orig/setup.py
++++ python-jwcrypto/setup.py
+@@ -37,7 +37,7 @@ setup(
+     data_files = [('share/doc/jwcrypto', ['LICENSE', 'README.md'])],
+     install_requires = [
+         'cryptography >= 3.4',
+-        'typing_extensions >= 4.5.0',
++#        'typing_extensions >= 4.5.0',
+     ],
+     python_requires = '>= 3.8',
+ )
