@@ -1,3 +1,6 @@
+Remove use of deprecated decorator (can be removed when we have
+new enough typing-extensions)
+
 --- python-jwcrypto.orig/jwcrypto/jwk.py
 +++ python-jwcrypto/jwcrypto/jwk.py
 @@ -11,7 +11,7 @@ from cryptography.hazmat.primitives impo
