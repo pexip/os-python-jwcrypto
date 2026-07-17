@@ -1,3 +1,17 @@
+python-jwcrypto (1.5.6-1.1~deb13u1) trixie; urgency=medium
+
+  * Non-maintainer upload.
+  * Rebuild for trixie.
+
+ -- Adrian Bunk <bunk@debian.org>  Sat, 27 Jun 2026 21:49:49 +0300
+
+python-jwcrypto (1.5.6-1.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * CVE-2026-39373: JWT bomb Attack in deserialize (Closes: #1133006)
+
+ -- Adrian Bunk <bunk@debian.org>  Tue, 23 Jun 2026 17:17:46 +0300
+
 python-jwcrypto (1.5.6-1+pexip25u3) pexip-trixie; urgency=medium
 
   * d/p/no_deprecated: remove typing-extensions dep
